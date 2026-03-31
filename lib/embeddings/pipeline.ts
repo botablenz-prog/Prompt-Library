@@ -12,7 +12,7 @@ async function getEmbedder(): Promise<EmbedPipeline> {
     // Model is downloaded on first use (~25MB) and cached locally
     embedder = await pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2", {
       dtype: "fp32",
-      cacheDir: "/tmp/transformers-cache",
+      cache_dir: "/tmp/transformers-cache",
     });
   }
   return embedder;
