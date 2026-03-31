@@ -1,0 +1,53 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createServerClient } from "@/lib/supabase/server";
+import { embed } from "@/lib/embeddings/pipeline";
+import { runVectorSearch } from "@/lib/search/vector";
+import { runFTSSearch } from "@/lib/search/fts";
+import { mergeResults } from "@/lib/search/scoring";
+import type { Prompt } from "@/lib/types";
+
+// GET /api/search?q=<query>
+export async function GET(req: NextRequest) {
+  const query = req.nextUrl.searchParams.get("q")?.trim();
+
+  if (!query) {
+    return NextResponse.json({ error: "q is required" }, { status: 400 });
+  }
+
+  const supabase = createServerClient();
+
+  // Run embedding + FTS in parallel
+  const [queryVec, ftsSet] = await Promise.all([
+    embed(query),
+    runFTSSearch(query),
+  ]);
+
+  const vectorResults = await runVectorSearch(queryVec);
+  const ranked = mergeResults(vectorResults, ftsSet);
+
+  if (ranked.length === 0) {
+    return NextResponse.json([]);
+  }
+
+  // Fetch full prompt rows for top 10 results
+  const topIds = ranked.slice(0, 10).map((r) => r.id);
+  const scoreMap = new Map(ranked.map((r) => [r.id, r.score]));
+
+  const { data, error } = await supabase
+    .from("prompts")
+    .select(
+      "id, title, summary, body, required_variables, optional_variables, tags, category, use_cases, notes, created_at, updated_at"
+    )
+    .in("id", topIds);
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Re-sort by score (DB .in() doesn't preserve order)
+  const results = (data as Prompt[])
+    .map((p) => ({ ...p, score: scoreMap.get(p.id) ?? 0 }))
+    .sort((a, b) => b.score - a.score);
+
+  return NextResponse.json(results);
+}
