@@ -1,7 +1,5 @@
 @echo off
-for /f "tokens=5" %%a in ('netstat -aon ^| find ":3001" ^| find "LISTENING"') do (
-  echo Killing PID %%a on port 3001
-  taskkill /f /pid %%a
-)
+echo Killing all node.exe processes...
+taskkill /f /im node.exe 2>nul
 echo Done.
 pause
