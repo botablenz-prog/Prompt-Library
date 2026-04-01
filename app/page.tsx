@@ -11,7 +11,7 @@ import { mergeResults } from "@/lib/search/scoring";
 import type { Prompt, SearchResult } from "@/lib/types";
 
 interface Props {
-  searchParams: { q?: string };
+  searchParams: Promise<{ q?: string }>;
 }
 
 async function getPrompts(query?: string): Promise<(Prompt | SearchResult)[]> {
@@ -50,7 +50,7 @@ async function getPrompts(query?: string): Promise<(Prompt | SearchResult)[]> {
 }
 
 export default async function HomePage({ searchParams }: Props) {
-  const query = searchParams.q;
+  const { q: query } = await searchParams;
   const prompts = await getPrompts(query);
 
   return (
