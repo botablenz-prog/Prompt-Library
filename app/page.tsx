@@ -1,6 +1,13 @@
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
 import { createServerClient } from "@/lib/supabase/server";
 import { PromptCard } from "@/components/prompt-card";
 import { SearchBar } from "@/components/search-bar";
+import { embed } from "@/lib/embeddings/pipeline";
+import { runVectorSearch } from "@/lib/search/vector";
+import { runFTSSearch } from "@/lib/search/fts";
+import { mergeResults } from "@/lib/search/scoring";
 import type { Prompt, SearchResult } from "@/lib/types";
 
 interface Props {
@@ -9,15 +16,26 @@ interface Props {
 
 async function getPrompts(query?: string): Promise<(Prompt | SearchResult)[]> {
   if (query?.trim()) {
-    const baseUrl =
-      process.env.NEXT_PUBLIC_APP_URL ??
-      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3001");
-    const res = await fetch(
-      `${baseUrl}/api/search?q=${encodeURIComponent(query)}`,
-      { cache: "no-store" }
-    );
-    if (!res.ok) return [];
-    return res.json();
+    const supabase = createServerClient();
+    const [queryVec, ftsSet] = await Promise.all([
+      embed(query),
+      runFTSSearch(query),
+    ]);
+    const vectorResults = await runVectorSearch(queryVec);
+    const ranked = mergeResults(vectorResults, ftsSet);
+    if (ranked.length === 0) return [];
+
+    const topIds = ranked.slice(0, 10).map((r) => r.id);
+    const scoreMap = new Map(ranked.map((r) => [r.id, r.score]));
+    const { data } = await supabase
+      .from("prompts")
+      .select(
+        "id, title, summary, body, required_variables, optional_variables, tags, category, use_cases, notes, created_at, updated_at"
+      )
+      .in("id", topIds);
+    return ((data ?? []) as Prompt[])
+      .map((p) => ({ ...p, score: scoreMap.get(p.id) ?? 0 }))
+      .sort((a, b) => (b as SearchResult).score - (a as SearchResult).score);
   }
 
   const supabase = createServerClient();
