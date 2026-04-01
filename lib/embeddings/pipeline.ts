@@ -1,26 +1,21 @@
-// Using `any` here because @huggingface/transformers pipeline() return type is a
-// large discriminated union that causes "too complex to represent" TS errors.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type EmbedPipeline = any;
+import OpenAI from "openai";
 
-let embedder: EmbedPipeline | null = null;
+let client: OpenAI | null = null;
 
-async function getEmbedder(): Promise<EmbedPipeline> {
-  if (!embedder) {
-    const { pipeline } = await import("@huggingface/transformers");
-    // all-MiniLM-L6-v2: 384-dim, fast, good semantic similarity quality
-    // Model is downloaded on first use (~25MB) and cached locally
-    embedder = await pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2", {
-      dtype: "fp32",
-      cache_dir: "/tmp/transformers-cache",
-    });
+function getClient(): OpenAI {
+  if (!client) {
+    client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   }
-  return embedder;
+  return client;
 }
 
-// Returns a 384-dimensional embedding vector for the given text
+// Returns a 384-dimensional embedding vector for the given text.
+// Uses text-embedding-3-small with dimensions=384 to match the pgvector column.
 export async function embed(text: string): Promise<number[]> {
-  const model = await getEmbedder();
-  const output = await model(text, { pooling: "mean", normalize: true });
-  return Array.from(output.data as Float32Array);
+  const response = await getClient().embeddings.create({
+    model: "text-embedding-3-small",
+    input: text,
+    dimensions: 384,
+  });
+  return response.data[0].embedding;
 }
