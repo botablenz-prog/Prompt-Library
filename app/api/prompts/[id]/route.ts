@@ -1,3 +1,5 @@
+export const maxDuration = 60;
+
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { embed } from "@/lib/embeddings/pipeline";
@@ -57,7 +59,8 @@ export async function PATCH(
   const bodyChanged =
     updates.body !== undefined && updates.body !== current.body;
   const metaChanged =
-    updates.title !== undefined || updates.summary !== undefined;
+    (updates.title !== undefined && updates.title !== current.title) ||
+    (updates.summary !== undefined && updates.summary !== current.summary);
 
   if (bodyChanged || metaChanged) {
     const embeddingText = [
