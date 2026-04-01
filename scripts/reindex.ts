@@ -4,6 +4,7 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
+import { embed, buildSearchText } from "../lib/embeddings/pipeline";
 
 function loadEnv() {
   try {
@@ -24,29 +25,17 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let embedder: any;
-
-async function embed(text: string): Promise<number[]> {
-  if (!embedder) {
-    const { pipeline } = await import("@huggingface/transformers");
-    embedder = await pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2", { dtype: "fp32" });
-  }
-  const out = await embedder(text, { pooling: "mean", normalize: true });
-  return Array.from(out.data as Float32Array);
-}
-
 async function main() {
   const { data: prompts, error } = await supabase
     .from("prompts")
-    .select("id, title, summary, body");
+    .select("id, title, summary, body, tags, category, use_cases, notes");
 
   if (error) throw error;
 
   console.log(`Re-indexing ${prompts?.length ?? 0} prompts...\n`);
 
   for (const p of prompts ?? []) {
-    const text = [p.title, p.summary, p.body].filter(Boolean).join(" ");
+    const text = buildSearchText(p);
     const embedding = await embed(text);
 
     const { error: updateError } = await supabase

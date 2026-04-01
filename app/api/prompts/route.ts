@@ -2,7 +2,7 @@ export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
-import { embed } from "@/lib/embeddings/pipeline";
+import { embed, buildSearchText } from "@/lib/embeddings/pipeline";
 import type { CreatePromptPayload } from "@/lib/types";
 
 // GET /api/prompts — list all prompts (no embedding column)
@@ -36,10 +36,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Generate embedding synchronously so the prompt is searchable immediately
-  const embeddingText = [body.title, body.summary, body.body]
-    .filter(Boolean)
-    .join(" ");
-  const embedding = await embed(embeddingText);
+  const embedding = await embed(buildSearchText(body));
 
   const { data, error } = await supabase
     .from("prompts")

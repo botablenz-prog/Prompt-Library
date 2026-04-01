@@ -2,7 +2,7 @@ export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
-import { embed } from "@/lib/embeddings/pipeline";
+import { embed, buildSearchText } from "@/lib/embeddings/pipeline";
 import type { UpdatePromptPayload } from "@/lib/types";
 
 const SELECT_COLS =
@@ -54,23 +54,15 @@ export async function PATCH(
     .from("prompt_versions")
     .insert({ prompt_id: id, snapshot: current });
 
-  // Re-embed if body or title/summary changed
+  // Re-embed if any searchable field changed
   let embedding: string | undefined;
-  const bodyChanged =
-    updates.body !== undefined && updates.body !== current.body;
-  const metaChanged =
-    (updates.title !== undefined && updates.title !== current.title) ||
-    (updates.summary !== undefined && updates.summary !== current.summary);
+  const searchableFields = ["title", "summary", "body", "tags", "category", "use_cases", "notes"] as const;
+  const searchableChanged = searchableFields.some(
+    (f) => updates[f] !== undefined && JSON.stringify(updates[f]) !== JSON.stringify(current[f])
+  );
 
-  if (bodyChanged || metaChanged) {
-    const embeddingText = [
-      updates.title ?? current.title,
-      updates.summary ?? current.summary,
-      updates.body ?? current.body,
-    ]
-      .filter(Boolean)
-      .join(" ");
-    const vec = await embed(embeddingText);
+  if (searchableChanged) {
+    const vec = await embed(buildSearchText({ ...current, ...updates }));
     embedding = JSON.stringify(vec);
   }
 
