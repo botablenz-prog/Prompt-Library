@@ -4,7 +4,16 @@ let client: OpenAI | null = null;
 
 function getClient(): OpenAI {
   if (!client) {
-    client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey) throw new Error("Missing OPENROUTER_API_KEY");
+    client = new OpenAI({
+      baseURL: "https://openrouter.ai/api/v1",
+      apiKey,
+      defaultHeaders: {
+        "HTTP-Referer": "https://prompt-library.local",
+        "X-Title": "Prompt Library",
+      },
+    });
   }
   return client;
 }
@@ -13,7 +22,7 @@ function getClient(): OpenAI {
 // Uses text-embedding-3-small with dimensions=384 to match the pgvector column.
 export async function embed(text: string): Promise<number[]> {
   const response = await getClient().embeddings.create({
-    model: "text-embedding-3-small",
+    model: "openai/text-embedding-3-small",
     input: text,
     dimensions: 384,
   });
