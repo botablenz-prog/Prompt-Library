@@ -49,7 +49,7 @@ export function PromptCard({ prompt }: Props) {
         {prompt.required_variables.length > 0 && (
           <span>{prompt.required_variables.length} required var{prompt.required_variables.length !== 1 ? "s" : ""}</span>
         )}
-        <span>{new Date(prompt.updated_at).toLocaleDateString()}</span>
+        <span>{new Date(prompt.updated_at).toLocaleDateString("en-US")}</span>
       </div>
     </Link>
   );
