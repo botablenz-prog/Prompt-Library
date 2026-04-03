@@ -19,12 +19,20 @@ export default function RootLayout({
             <a href="/" className="text-sm font-semibold tracking-tight text-zinc-100 hover:text-white">
               Prompt Library
             </a>
-            <a
-              href="/prompts/new"
-              className="rounded-md bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-200 hover:bg-zinc-700 transition-colors"
-            >
-              + New Prompt
-            </a>
+            <div className="flex items-center gap-2">
+              <a
+                href="/api/export"
+                className="rounded-md border border-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 transition-colors"
+              >
+                ↓ Export JSON
+              </a>
+              <a
+                href="/prompts/new"
+                className="rounded-md bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-200 hover:bg-zinc-700 transition-colors"
+              >
+                + New Prompt
+              </a>
+            </div>
           </div>
         </nav>
         <main className="mx-auto max-w-4xl px-6 py-8">{children}</main>
