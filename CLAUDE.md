@@ -6,14 +6,15 @@ Personal prompt management system. Save, search (hybrid semantic + FTS), and ada
 ## Stack
 - **Framework**: Next.js 15, App Router, TypeScript strict mode
 - **Database**: Supabase (Postgres + pgvector)
-- **Embeddings**: `@huggingface/transformers` — `all-MiniLM-L6-v2` (384-dim), runs locally in Node.js, zero API cost
+- **Embeddings**: OpenRouter `text-embedding-3-small` (384-dim) via `openai` SDK — same API key as LLM
 - **LLM**: OpenRouter via `openai` SDK with baseURL override (`OPENROUTER_API_KEY` + `OPENROUTER_MODEL` in env)
 - **Styling**: Tailwind CSS
 
 ## Key Architecture Decisions
-- Embeddings are generated **synchronously** on `POST /api/prompts` and `PATCH /api/prompts/[id]` (when body changes)
-- Search is **always free** — no LLM on search path. Hybrid = vector cosine (80%) + FTS boolean match (20%)
-- LLM is **only called** in `/api/adapt` — never on search
+- Embeddings are generated **synchronously** on `POST /api/prompts` and `PATCH /api/prompts/[id]` (when any searchable field changes)
+- Embedding text includes title, summary, category, tags, use_cases, body, notes — all labeled (e.g. `Title: ...`) for better retrieval
+- Default search is **always free** — no LLM on the search path. Hybrid = vector cosine (80%) + FTS boolean match (20%)
+- LLM is called in `/api/adapt` (adaptation) and optionally in search reranking (`?rerank=1` — reorders top-20 candidates by relevance)
 - `prompt_versions` stores full JSONB snapshots of the prompt row on every edit
 - `prompt_variants` stores `frozen_body` (parent body at creation time) + `adapted_body` (immutable output)
 - Variable placeholders use `{{variable_name}}` syntax only — no nesting
@@ -24,7 +25,7 @@ app/                    Next.js App Router pages + API routes
 lib/
   supabase/             Browser + server Supabase clients
   embeddings/           Local embedding pipeline (pipeline.ts)
-  search/               vector.ts, fts.ts, scoring.ts
+  search/               vector.ts, fts.ts, scoring.ts, rerank.ts
   adaptation/           variables.ts (extract/detect), llm.ts (OpenRouter)
   types.ts              All shared TypeScript types
 components/             React components (prompt-card, prompt-form, search-bar, adapt-flow)
@@ -50,7 +51,7 @@ Copy `.env.local.example` to `.env.local` and fill in:
 ```bash
 npm run seed      # Insert example prompts
 npm run embed     # Generate embeddings for all prompts missing them
-npm run reindex   # Re-embed prompts where body has changed
+npm run reindex   # Re-embed ALL prompts (run after model or schema changes)
 ```
 
 ## Variable System
