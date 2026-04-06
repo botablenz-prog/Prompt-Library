@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase/server";
+import { createAnonClient } from "@/lib/supabase/anon";
+import { requireAdmin } from "@/lib/auth/api-guard";
 
 // GET /api/prompts/[id]/variants
 export async function GET(
@@ -7,7 +8,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const supabase = createServerClient();
+  const supabase = createAnonClient();
 
   const { data, error } = await supabase
     .from("prompt_variants")
@@ -27,8 +28,11 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const guard = await requireAdmin();
+  if (guard instanceof NextResponse) return guard;
+  const { supabase, userId } = guard;
+
   const { id } = await params;
-  const supabase = createServerClient();
   const body = await req.json();
 
   const { title, adapted_body, context_used } = body;
@@ -52,6 +56,7 @@ export async function POST(
     .from("prompt_variants")
     .insert({
       parent_id: id,
+      user_id: userId,
       title: title ?? null,
       frozen_body: parent.body,
       adapted_body,

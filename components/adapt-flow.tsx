@@ -8,6 +8,7 @@ type Step = "fill" | "adapting" | "result";
 interface Props {
   prompt: Prompt;
   onSaveVariant: (adaptedBody: string, contextUsed: Record<string, string>) => Promise<void>;
+  showSave?: boolean;
 }
 
 function VariableInput({
@@ -64,7 +65,7 @@ function VariableInput({
   );
 }
 
-export function AdaptFlow({ prompt, onSaveVariant }: Props) {
+export function AdaptFlow({ prompt, onSaveVariant, showSave = true }: Props) {
   const allVars = [...prompt.required_variables, ...prompt.optional_variables];
   const hasVars = allVars.length > 0;
 
@@ -231,13 +232,15 @@ export function AdaptFlow({ prompt, onSaveVariant }: Props) {
         >
           {copied ? "Copied!" : "Copy"}
         </button>
-        <button
-          onClick={handleSaveVariant}
-          disabled={saving || saved}
-          className="rounded-md border border-zinc-700 px-4 py-2 text-sm text-zinc-400 hover:text-zinc-200 disabled:opacity-50 transition-colors"
-        >
-          {saved ? "Saved as variant" : saving ? "Saving…" : "Save as variant"}
-        </button>
+        {showSave && (
+          <button
+            onClick={handleSaveVariant}
+            disabled={saving || saved}
+            className="rounded-md border border-zinc-700 px-4 py-2 text-sm text-zinc-400 hover:text-zinc-200 disabled:opacity-50 transition-colors"
+          >
+            {saved ? "Saved as variant" : saving ? "Saving…" : "Save as variant"}
+          </button>
+        )}
         <button
           onClick={() => { setStep("fill"); setResult(null); setSaved(false); }}
           className="rounded-md border border-zinc-700 px-4 py-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors"

@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-import { createServerClient } from "@/lib/supabase/server";
+import { createAnonClient } from "@/lib/supabase/anon";
 import { PromptCard } from "@/components/prompt-card";
 import { SearchBar } from "@/components/search-bar";
 import { embed } from "@/lib/embeddings/pipeline";
@@ -9,6 +9,7 @@ import { runVectorSearch } from "@/lib/search/vector";
 import { runFTSSearch } from "@/lib/search/fts";
 import { mergeResults } from "@/lib/search/scoring";
 import { rerankResults } from "@/lib/search/rerank";
+import { getUser, getRole } from "@/lib/auth/session";
 import type { Prompt, SearchResult } from "@/lib/types";
 
 interface Props {
@@ -17,7 +18,7 @@ interface Props {
 
 async function getPrompts(query?: string, rerank?: boolean): Promise<(Prompt | SearchResult)[]> {
   if (query?.trim()) {
-    const supabase = createServerClient();
+    const supabase = createAnonClient();
     const [queryVec, ftsSet] = await Promise.all([
       embed(query),
       runFTSSearch(query),
@@ -52,7 +53,7 @@ async function getPrompts(query?: string, rerank?: boolean): Promise<(Prompt | S
       .sort((a, b) => (b as SearchResult).score - (a as SearchResult).score);
   }
 
-  const supabase = createServerClient();
+  const supabase = createAnonClient();
   const { data } = await supabase
     .from("prompts")
     .select(
@@ -65,7 +66,9 @@ async function getPrompts(query?: string, rerank?: boolean): Promise<(Prompt | S
 
 export default async function HomePage({ searchParams }: Props) {
   const { q: query, rerank } = await searchParams;
-  const isReranked = rerank === "1";
+  const [user] = await Promise.all([getUser()]);
+  const isAdmin = getRole(user) === "admin";
+  const isReranked = rerank === "1" && isAdmin;
   const prompts = await getPrompts(query, isReranked);
 
   return (
@@ -78,7 +81,7 @@ export default async function HomePage({ searchParams }: Props) {
             {prompts.length} result{prompts.length !== 1 ? "s" : ""} for &ldquo;{query}&rdquo;
             {isReranked && <span className="ml-2 text-zinc-400">(ranking improved)</span>}
           </p>
-          {!isReranked && prompts.length > 0 && (
+          {isAdmin && !isReranked && prompts.length > 0 && (
             <a
               href={`/?q=${encodeURIComponent(query)}&rerank=1`}
               className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors underline underline-offset-2"
@@ -94,12 +97,14 @@ export default async function HomePage({ searchParams }: Props) {
           <p className="text-sm text-zinc-500">
             {query ? "No prompts matched your search." : "No prompts yet."}
           </p>
-          <a
-            href="/prompts/new"
-            className="mt-4 inline-block rounded-md bg-zinc-800 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition-colors"
-          >
-            + Create your first prompt
-          </a>
+          {isAdmin && (
+            <a
+              href="/prompts/new"
+              className="mt-4 inline-block rounded-md bg-zinc-800 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition-colors"
+            >
+              + Create your first prompt
+            </a>
+          )}
         </div>
       ) : (
         <div className="grid gap-3">

@@ -1,5 +1,6 @@
-import { notFound } from "next/navigation";
-import { createServerClient } from "@/lib/supabase/server";
+import { notFound, redirect } from "next/navigation";
+import { createAnonClient } from "@/lib/supabase/anon";
+import { getUser, getRole } from "@/lib/auth/session";
 import { EditForm } from "./edit-form";
 import type { Prompt } from "@/lib/types";
 
@@ -9,7 +10,10 @@ export default async function EditPromptPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const supabase = createServerClient();
+  const user = await getUser();
+  if (getRole(user) !== "admin") redirect(`/prompts/${id}`);
+
+  const supabase = createAnonClient();
   const { data, error } = await supabase
     .from("prompts")
     .select(

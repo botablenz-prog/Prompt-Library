@@ -3,8 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-export function DeleteButton({ id }: { id: string }) {
+export function DeleteButton({ id, isAdmin }: { id: string; isAdmin: boolean }) {
   const router = useRouter();
+  if (!isAdmin) return null;
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
 

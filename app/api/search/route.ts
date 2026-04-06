@@ -2,7 +2,8 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase/server";
+import { createAnonClient } from "@/lib/supabase/anon";
+import { requireAdmin } from "@/lib/auth/api-guard";
 import { embed } from "@/lib/embeddings/pipeline";
 import { runVectorSearch } from "@/lib/search/vector";
 import { runFTSSearch } from "@/lib/search/fts";
@@ -17,7 +18,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "q is required" }, { status: 400 });
   }
 
-  const supabase = createServerClient();
+  // Reranking triggers an LLM call — require admin
+  if (req.nextUrl.searchParams.get("rerank") === "1") {
+    const guard = await requireAdmin();
+    if (guard instanceof NextResponse) return guard;
+  }
+
+  const supabase = createAnonClient();
 
   // Run embedding + FTS in parallel
   const [queryVec, ftsSet] = await Promise.all([

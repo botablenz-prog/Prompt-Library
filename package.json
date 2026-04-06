@@ -9,10 +9,13 @@
     "lint": "next lint",
     "seed": "tsx scripts/seed.ts",
     "embed": "tsx scripts/embed.ts",
-    "reindex": "tsx scripts/reindex.ts"
+    "reindex": "tsx scripts/reindex.ts",
+    "set-admin": "node --env-file=.env.local node_modules/tsx/dist/cli.mjs scripts/set-admin.ts",
+    "backfill-owner": "node --env-file=.env.local node_modules/tsx/dist/cli.mjs scripts/backfill-owner.ts"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.8.1",
+    "@supabase/ssr": "^0.10.0",
     "@supabase/supabase-js": "^2.49.1",
     "autoprefixer": "^10.4.27",
     "next": "^15.3.0",

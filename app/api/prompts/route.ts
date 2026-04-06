@@ -1,13 +1,14 @@
 export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase/server";
+import { createAnonClient } from "@/lib/supabase/anon";
+import { requireAdmin } from "@/lib/auth/api-guard";
 import { embed, buildSearchText } from "@/lib/embeddings/pipeline";
 import type { CreatePromptPayload } from "@/lib/types";
 
 // GET /api/prompts — list all prompts (no embedding column)
 export async function GET() {
-  const supabase = createServerClient();
+  const supabase = createAnonClient();
 
   const { data, error } = await supabase
     .from("prompts")
@@ -25,7 +26,10 @@ export async function GET() {
 
 // POST /api/prompts — create a new prompt and embed it synchronously
 export async function POST(req: NextRequest) {
-  const supabase = createServerClient();
+  const guard = await requireAdmin();
+  if (guard instanceof NextResponse) return guard;
+  const { supabase, userId } = guard;
+
   const body: CreatePromptPayload = await req.json();
 
   if (!body.title?.trim() || !body.body?.trim()) {
@@ -40,7 +44,7 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await supabase
     .from("prompts")
-    .insert({ ...body, embedding: JSON.stringify(embedding) })
+    .insert({ ...body, user_id: userId, embedding: JSON.stringify(embedding) })
     .select(
       "id, title, summary, body, required_variables, optional_variables, tags, category, use_cases, notes, created_at, updated_at"
     )

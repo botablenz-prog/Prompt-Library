@@ -1,7 +1,8 @@
 export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase/server";
+import { createAnonClient } from "@/lib/supabase/anon";
+import { requireAdmin } from "@/lib/auth/api-guard";
 import { embed, buildSearchText } from "@/lib/embeddings/pipeline";
 import type { UpdatePromptPayload } from "@/lib/types";
 
@@ -14,7 +15,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const supabase = createServerClient();
+  const supabase = createAnonClient();
 
   const { data, error } = await supabase
     .from("prompts")
@@ -34,8 +35,11 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const guard = await requireAdmin();
+  if (guard instanceof NextResponse) return guard;
+  const { supabase } = guard;
+
   const { id } = await params;
-  const supabase = createServerClient();
   const updates: UpdatePromptPayload = await req.json();
 
   // Fetch current record to snapshot and check if body changed
@@ -84,11 +88,14 @@ export async function PATCH(
 
 // DELETE /api/prompts/[id]
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const guard = await requireAdmin();
+  if (guard instanceof NextResponse) return guard;
+  const { supabase } = guard;
+
   const { id } = await params;
-  const supabase = createServerClient();
 
   const { error } = await supabase
     .from("prompts")

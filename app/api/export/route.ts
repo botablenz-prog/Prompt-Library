@@ -1,8 +1,13 @@
 export const runtime = "nodejs";
 
+import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/auth/api-guard";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const guard = await requireAdmin();
+  if (guard instanceof NextResponse) return guard;
+
   const supabase = createServerClient();
 
   const { data, error } = await supabase

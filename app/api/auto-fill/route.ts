@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
+import { requireAdmin } from "@/lib/auth/api-guard";
 import { extractVariableNames } from "@/lib/adaptation/variables";
 
 // POST /api/auto-fill
 // Body: { title: string, body: string }
 // Returns: { tags, category, use_cases, notes, required_variables, optional_variables }
 export async function POST(req: NextRequest) {
+  const guard = await requireAdmin();
+  if (guard instanceof NextResponse) return guard;
   const { title, description, body } = await req.json();
 
   if (!body?.trim()) {

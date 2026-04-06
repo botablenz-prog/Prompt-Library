@@ -1,4 +1,4 @@
-import { createServerClient } from "@/lib/supabase/server";
+import { createAnonClient } from "@/lib/supabase/anon";
 
 export interface VectorResult {
   id: string;
@@ -10,7 +10,7 @@ export async function runVectorSearch(
   queryVec: number[],
   limit = 20
 ): Promise<VectorResult[]> {
-  const supabase = createServerClient();
+  const supabase = createAnonClient();
   const vecString = `[${queryVec.join(",")}]`;
 
   const { data, error } = await supabase

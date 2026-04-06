@@ -1,11 +1,12 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { createServerClient } from "@/lib/supabase/server";
+import { createAnonClient } from "@/lib/supabase/anon";
+import { getUser, getRole } from "@/lib/auth/session";
 import type { Prompt, PromptVariant } from "@/lib/types";
 import { DeleteButton } from "./delete-button";
 
 async function getPrompt(id: string): Promise<Prompt | null> {
-  const supabase = createServerClient();
+  const supabase = createAnonClient();
   const { data, error } = await supabase
     .from("prompts")
     .select(
@@ -19,7 +20,7 @@ async function getPrompt(id: string): Promise<Prompt | null> {
 }
 
 async function getVariants(promptId: string): Promise<PromptVariant[]> {
-  const supabase = createServerClient();
+  const supabase = createAnonClient();
   const { data } = await supabase
     .from("prompt_variants")
     .select("id, parent_id, title, frozen_body, adapted_body, context_used, created_at")
@@ -35,10 +36,12 @@ export default async function PromptDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [prompt, variants] = await Promise.all([
+  const [prompt, variants, user] = await Promise.all([
     getPrompt(id),
     getVariants(id),
+    getUser(),
   ]);
+  const isAdmin = getRole(user) === "admin";
 
   if (!prompt) notFound();
 
@@ -59,13 +62,15 @@ export default async function PromptDetailPage({
           >
             Use prompt
           </Link>
-          <Link
-            href={`/prompts/${prompt.id}/edit`}
-            className="rounded-md border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
-          >
-            Edit
-          </Link>
-          <DeleteButton id={prompt.id} />
+          {isAdmin && (
+            <Link
+              href={`/prompts/${prompt.id}/edit`}
+              className="rounded-md border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
+            >
+              Edit
+            </Link>
+          )}
+          <DeleteButton id={prompt.id} isAdmin={isAdmin} />
         </div>
       </div>
 

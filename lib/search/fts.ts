@@ -1,8 +1,8 @@
-import { createServerClient } from "@/lib/supabase/server";
+import { createAnonClient } from "@/lib/supabase/anon";
 
 // Returns the set of prompt IDs that match the full-text query
 export async function runFTSSearch(query: string, limit = 20): Promise<Set<string>> {
-  const supabase = createServerClient();
+  const supabase = createAnonClient();
 
   const { data, error } = await supabase
     .from("prompts")

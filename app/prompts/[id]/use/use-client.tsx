@@ -3,7 +3,7 @@
 import { AdaptFlow } from "@/components/adapt-flow";
 import type { Prompt } from "@/lib/types";
 
-export function UseClient({ prompt }: { prompt: Prompt }) {
+export function UseClient({ prompt, isAdmin }: { prompt: Prompt; isAdmin: boolean }) {
   async function saveVariant(adaptedBody: string, contextUsed: Record<string, string>) {
     const res = await fetch(`/api/prompts/${prompt.id}/variants`, {
       method: "POST",
@@ -17,5 +17,5 @@ export function UseClient({ prompt }: { prompt: Prompt }) {
     }
   }
 
-  return <AdaptFlow prompt={prompt} onSaveVariant={saveVariant} />;
+  return <AdaptFlow prompt={prompt} onSaveVariant={saveVariant} showSave={isAdmin} />;
 }

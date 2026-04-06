@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { createServerClient } from "@/lib/supabase/server";
+import { createAnonClient } from "@/lib/supabase/anon";
+import { getUser, getRole } from "@/lib/auth/session";
 import { UseClient } from "./use-client";
 import type { Prompt } from "@/lib/types";
 
@@ -10,7 +11,9 @@ export default async function UsePromptPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const supabase = createServerClient();
+  const [user] = await Promise.all([getUser()]);
+  const isAdmin = getRole(user) === "admin";
+  const supabase = createAnonClient();
   const { data, error } = await supabase
     .from("prompts")
     .select(
@@ -40,7 +43,7 @@ export default async function UsePromptPage({
         )}
       </div>
 
-      <UseClient prompt={prompt} />
+      <UseClient prompt={prompt} isAdmin={isAdmin} />
     </div>
   );
 }

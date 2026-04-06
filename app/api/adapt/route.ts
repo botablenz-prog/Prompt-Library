@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/auth/api-guard";
 import { interpolate, hasUnfilledVariables } from "@/lib/adaptation/variables";
 import { adaptPrompt } from "@/lib/adaptation/llm";
 import type { AdaptContext } from "@/lib/types";
@@ -7,6 +8,8 @@ import type { AdaptContext } from "@/lib/types";
 // Body: { promptBody: string, context: AdaptContext }
 // Returns: { result: string, usedLLM: boolean }
 export async function POST(req: NextRequest) {
+  const guard = await requireAdmin();
+  if (guard instanceof NextResponse) return guard;
   const { promptBody, context } = await req.json() as {
     promptBody: string;
     context: AdaptContext;
