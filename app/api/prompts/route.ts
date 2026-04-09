@@ -6,8 +6,12 @@ import { requireAdmin } from "@/lib/auth/api-guard";
 import { embed, buildSearchText } from "@/lib/embeddings/pipeline";
 import type { CreatePromptPayload } from "@/lib/types";
 
-// GET /api/prompts — list all prompts (no embedding column)
-export async function GET() {
+// GET /api/prompts — paginated prompt list (no embedding column)
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const offset = Math.max(0, parseInt(searchParams.get("offset") ?? "0", 10));
+  const limit = Math.min(50, Math.max(1, parseInt(searchParams.get("limit") ?? "20", 10)));
+
   const supabase = createAnonClient();
 
   const { data, error } = await supabase
@@ -15,7 +19,8 @@ export async function GET() {
     .select(
       "id, title, summary, body, required_variables, optional_variables, tags, category, use_cases, notes, created_at, updated_at"
     )
-    .order("updated_at", { ascending: false });
+    .order("updated_at", { ascending: false })
+    .range(offset, offset + limit - 1);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

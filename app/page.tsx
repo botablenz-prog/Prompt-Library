@@ -10,6 +10,7 @@ import { runFTSSearch } from "@/lib/search/fts";
 import { mergeResults } from "@/lib/search/scoring";
 import { rerankResults } from "@/lib/search/rerank";
 import { getUser, getRole } from "@/lib/auth/session";
+import { PromptList } from "@/components/prompt-list";
 import type { Prompt, SearchResult } from "@/lib/types";
 
 interface Props {
@@ -59,7 +60,8 @@ async function getPrompts(query?: string, rerank?: boolean): Promise<(Prompt | S
     .select(
       "id, title, summary, body, required_variables, optional_variables, tags, category, use_cases, notes, created_at, updated_at"
     )
-    .order("updated_at", { ascending: false });
+    .order("updated_at", { ascending: false })
+    .range(0, 19);
 
   return (data ?? []) as Prompt[];
 }
@@ -106,12 +108,14 @@ export default async function HomePage({ searchParams }: Props) {
             </a>
           )}
         </div>
-      ) : (
+      ) : query ? (
         <div className="grid gap-3">
           {prompts.map((p) => (
             <PromptCard key={p.id} prompt={p} />
           ))}
         </div>
+      ) : (
+        <PromptList initialPrompts={prompts as Prompt[]} isAdmin={isAdmin} />
       )}
     </div>
   );

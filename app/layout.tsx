@@ -18,9 +18,14 @@ export default async function RootLayout({
 
   return (
     <html lang="en">
-      <body className="min-h-screen bg-zinc-950 text-zinc-100 antialiased">
+      <body className="flex flex-col min-h-screen bg-zinc-950 text-zinc-100 antialiased">
         <Nav auth={auth} />
-        <main className="mx-auto max-w-4xl px-6 py-8">{children}</main>
+        <main className="flex-1 mx-auto max-w-4xl w-full px-6 py-8">{children}</main>
+        <footer className="border-t border-zinc-800 py-6 text-center">
+          <p className="text-xs text-zinc-600">
+            Open-source project by <span className="text-zinc-500">Botable</span> — AI tools for everyday work
+          </p>
+        </footer>
       </body>
     </html>
   );
