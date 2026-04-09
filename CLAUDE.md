@@ -61,10 +61,10 @@ Prompts can contain `{{variable_name}}` placeholders. Variables are defined in:
 
 Types: `text` (short), `long_text` (textarea), `choice` (dropdown from `options[]`)
 
-## Preferences
+## Code Style
 - Keep it simple — no over-engineering
-- Do not add features beyond what is asked
-- Do not add unnecessary comments or docstrings
+- Only add features explicitly requested
+- No unnecessary comments or docstrings
 - TypeScript strict mode throughout
 - Tailwind for all styling — no CSS modules or styled-components
 - Dark theme (zinc-950 background)
