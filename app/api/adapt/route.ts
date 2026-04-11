@@ -10,6 +10,7 @@ import type { AdaptContext } from "@/lib/types";
 export async function POST(req: NextRequest) {
   const guard = await requireAdmin();
   if (guard instanceof NextResponse) return guard;
+
   const { promptBody, context } = await req.json() as {
     promptBody: string;
     context: AdaptContext;
@@ -17,6 +18,12 @@ export async function POST(req: NextRequest) {
 
   if (!promptBody?.trim()) {
     return NextResponse.json({ error: "promptBody is required" }, { status: 400 });
+  }
+  if (typeof promptBody !== "string" || promptBody.length > 50_000) {
+    return NextResponse.json({ error: "promptBody must be 50,000 characters or fewer" }, { status: 400 });
+  }
+  if (context?.freeform && (typeof context.freeform !== "string" || context.freeform.length > 10_000)) {
+    return NextResponse.json({ error: "freeform context must be 10,000 characters or fewer" }, { status: 400 });
   }
 
   const ctx = context ?? { variables: {} };
@@ -32,6 +39,12 @@ export async function POST(req: NextRequest) {
   }
 
   // Step 3: call LLM to fill gaps or adapt for freeform context
-  const result = await adaptPrompt(interpolated, ctx);
-  return NextResponse.json({ result, usedLLM: true });
+  try {
+    const result = await adaptPrompt(interpolated, ctx);
+    return NextResponse.json({ result, usedLLM: true });
+  } catch (err: unknown) {
+    const e = err as { code?: string; name?: string };
+    console.error("[POST /api/adapt]", e?.code ?? e?.name ?? "unknown");
+    return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
+  }
 }

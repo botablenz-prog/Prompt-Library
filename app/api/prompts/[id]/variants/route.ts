@@ -12,12 +12,13 @@ export async function GET(
 
   const { data, error } = await supabase
     .from("prompt_variants")
-    .select("id, parent_id, title, frozen_body, adapted_body, context_used, created_at")
+    .select("id, parent_id, title, frozen_body, adapted_body, created_at")
     .eq("parent_id", id)
     .order("created_at", { ascending: false });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[GET /api/prompts/[id]/variants]", error.code ?? error.name);
+    return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
   }
 
   return NextResponse.json(data);
@@ -40,6 +41,12 @@ export async function POST(
   if (!adapted_body?.trim()) {
     return NextResponse.json({ error: "adapted_body is required" }, { status: 400 });
   }
+  if (typeof adapted_body !== "string" || adapted_body.length > 100_000) {
+    return NextResponse.json({ error: "adapted_body must be 100,000 characters or fewer" }, { status: 400 });
+  }
+  if (title !== undefined && title !== null && (typeof title !== "string" || title.length > 255)) {
+    return NextResponse.json({ error: "title must be 255 characters or fewer" }, { status: 400 });
+  }
 
   // Fetch parent to get frozen_body snapshot
   const { data: parent, error: parentError } = await supabase
@@ -49,7 +56,7 @@ export async function POST(
     .single();
 
   if (parentError) {
-    return NextResponse.json({ error: parentError.message }, { status: 404 });
+    return NextResponse.json({ error: "Prompt not found" }, { status: 404 });
   }
 
   const { data, error } = await supabase
@@ -62,11 +69,12 @@ export async function POST(
       adapted_body,
       context_used: context_used ?? {},
     })
-    .select("id, parent_id, title, frozen_body, adapted_body, context_used, created_at")
+    .select("id, parent_id, title, frozen_body, adapted_body, created_at")
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[POST /api/prompts/[id]/variants]", error.code ?? error.name);
+    return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
   }
 
   return NextResponse.json(data, { status: 201 });

@@ -18,6 +18,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "q is required" }, { status: 400 });
   }
 
+  if (query.length > 1000) {
+    return NextResponse.json({ error: "Query too long (max 1000 characters)" }, { status: 400 });
+  }
+
   // Reranking triggers an LLM call — require admin
   if (req.nextUrl.searchParams.get("rerank") === "1") {
     const guard = await requireAdmin();
@@ -51,7 +55,8 @@ export async function GET(req: NextRequest) {
     .in("id", topIds);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[GET /api/search]", error.code ?? error.name);
+    return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
   }
 
   // Re-sort by score (DB .in() doesn't preserve order)

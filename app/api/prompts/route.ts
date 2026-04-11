@@ -23,7 +23,8 @@ export async function GET(req: NextRequest) {
     .range(offset, offset + limit - 1);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[GET /api/prompts]", error.code ?? error.name);
+    return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
   }
 
   return NextResponse.json(data);
@@ -38,10 +39,22 @@ export async function POST(req: NextRequest) {
   const body: CreatePromptPayload = await req.json();
 
   if (!body.title?.trim() || !body.body?.trim()) {
-    return NextResponse.json(
-      { error: "title and body are required" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "title and body are required" }, { status: 400 });
+  }
+  if (typeof body.title !== "string" || body.title.length > 255) {
+    return NextResponse.json({ error: "title must be 255 characters or fewer" }, { status: 400 });
+  }
+  if (typeof body.body !== "string" || body.body.length > 100_000) {
+    return NextResponse.json({ error: "body must be 100,000 characters or fewer" }, { status: 400 });
+  }
+  if (body.summary && (typeof body.summary !== "string" || body.summary.length > 5_000)) {
+    return NextResponse.json({ error: "summary must be 5,000 characters or fewer" }, { status: 400 });
+  }
+  if (body.notes && (typeof body.notes !== "string" || body.notes.length > 5_000)) {
+    return NextResponse.json({ error: "notes must be 5,000 characters or fewer" }, { status: 400 });
+  }
+  if (body.tags && (!Array.isArray(body.tags) || body.tags.length > 20 || body.tags.some((t) => typeof t !== "string" || t.length > 50))) {
+    return NextResponse.json({ error: "tags must be an array of up to 20 strings (max 50 chars each)" }, { status: 400 });
   }
 
   // Generate embedding synchronously so the prompt is searchable immediately
@@ -56,7 +69,8 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[POST /api/prompts]", error.code ?? error.name);
+    return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
   }
 
   return NextResponse.json(data, { status: 201 });

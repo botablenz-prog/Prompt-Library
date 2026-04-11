@@ -24,7 +24,7 @@ export async function GET(
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 404 });
+    return NextResponse.json({ error: "Prompt not found" }, { status: 404 });
   }
 
   return NextResponse.json(data);
@@ -42,6 +42,22 @@ export async function PATCH(
   const { id } = await params;
   const updates: UpdatePromptPayload = await req.json();
 
+  if (updates.title !== undefined && (typeof updates.title !== "string" || updates.title.length < 1 || updates.title.length > 255)) {
+    return NextResponse.json({ error: "title must be 255 characters or fewer" }, { status: 400 });
+  }
+  if (updates.body !== undefined && (typeof updates.body !== "string" || updates.body.length < 1 || updates.body.length > 100_000)) {
+    return NextResponse.json({ error: "body must be 100,000 characters or fewer" }, { status: 400 });
+  }
+  if (updates.summary !== undefined && updates.summary !== null && (typeof updates.summary !== "string" || updates.summary.length > 5_000)) {
+    return NextResponse.json({ error: "summary must be 5,000 characters or fewer" }, { status: 400 });
+  }
+  if (updates.notes !== undefined && updates.notes !== null && (typeof updates.notes !== "string" || updates.notes.length > 5_000)) {
+    return NextResponse.json({ error: "notes must be 5,000 characters or fewer" }, { status: 400 });
+  }
+  if (updates.tags !== undefined && (!Array.isArray(updates.tags) || updates.tags.length > 20 || updates.tags.some((t) => typeof t !== "string" || t.length > 50))) {
+    return NextResponse.json({ error: "tags must be an array of up to 20 strings (max 50 chars each)" }, { status: 400 });
+  }
+
   // Fetch current record to snapshot and check if body changed
   const { data: current, error: fetchError } = await supabase
     .from("prompts")
@@ -50,7 +66,7 @@ export async function PATCH(
     .single();
 
   if (fetchError) {
-    return NextResponse.json({ error: fetchError.message }, { status: 404 });
+    return NextResponse.json({ error: "Prompt not found" }, { status: 404 });
   }
 
   // Snapshot current state before applying update
@@ -80,7 +96,8 @@ export async function PATCH(
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[PATCH /api/prompts/[id]]", error.code ?? error.name);
+    return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
   }
 
   return NextResponse.json(data);
@@ -103,7 +120,8 @@ export async function DELETE(
     .eq("id", id);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[DELETE /api/prompts/[id]]", error.code ?? error.name);
+    return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
   }
 
   return new NextResponse(null, { status: 204 });

@@ -18,7 +18,8 @@ export async function GET(req: NextRequest) {
     .order("created_at", { ascending: true });
 
   if (error) {
-    return Response.json({ error: error.message }, { status: 500 });
+    console.error("[GET /api/export]", error.code ?? error.name);
+    return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
   }
 
   // Reorder fields for human readability — embedding intentionally excluded

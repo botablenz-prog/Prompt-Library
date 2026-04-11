@@ -103,6 +103,8 @@ OPENROUTER_API_KEY=     ← your OpenRouter API key
 OPENROUTER_MODEL=anthropic/claude-haiku-4-5   ← leave as-is, or change to any model
 ```
 
+> **Spend protection (recommended):** Set a monthly credit limit on your OpenRouter API key at openrouter.ai/settings/keys → **Credit limits**. This caps your spend if the app is left running or your session is ever compromised. All LLM routes require admin authentication, so external users cannot trigger API calls — but a credit cap is good practice regardless.
+
 ---
 
 ## Database setup
@@ -224,6 +226,9 @@ See [CLAUDE.md](CLAUDE.md) for full architecture notes and code style guidelines
 
 **Search returns no results**
 → After seeding, run `npm run embed` to generate embeddings. Without embeddings, vector search returns nothing.
+
+**Search returns no results after seeding**
+→ The seed script uses a local HuggingFace model to generate embeddings, which is incompatible with the OpenRouter model used by the live app. After running `npm run seed`, always run `npm run reindex` to re-embed all prompts with the correct model.
 
 **"Unauthorized" when trying to create prompts**
 → You haven't been granted admin access yet. Complete the [First-time admin setup](#first-time-admin-setup) steps.
