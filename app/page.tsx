@@ -20,11 +20,19 @@ interface Props {
 async function getPrompts(query?: string, rerank?: boolean): Promise<(Prompt | SearchResult)[]> {
   if (query?.trim()) {
     const supabase = createAnonClient();
-    const [queryVec, ftsSet] = await Promise.all([
-      embed(query),
-      runFTSSearch(query),
-    ]);
-    const vectorResults = await runVectorSearch(queryVec);
+    let queryVec: number[] | null = null;
+    let ftsSet: Awaited<ReturnType<typeof runFTSSearch>>;
+    try {
+      [queryVec, ftsSet] = await Promise.all([
+        embed(query),
+        runFTSSearch(query),
+      ]);
+    } catch {
+      // Embedding failed — fall back to FTS-only search
+      queryVec = null;
+      ftsSet = await runFTSSearch(query);
+    }
+    const vectorResults = queryVec ? await runVectorSearch(queryVec) : [];
     const ranked = mergeResults(vectorResults, ftsSet);
     if (ranked.length === 0) return [];
 

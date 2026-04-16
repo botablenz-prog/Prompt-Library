@@ -30,13 +30,20 @@ export async function GET(req: NextRequest) {
 
   const supabase = createAnonClient();
 
-  // Run embedding + FTS in parallel
-  const [queryVec, ftsSet] = await Promise.all([
-    embed(query),
-    runFTSSearch(query),
-  ]);
+  // Run embedding + FTS in parallel; fall back to FTS-only if embedding fails
+  let queryVec: number[] | null = null;
+  let ftsSet: Awaited<ReturnType<typeof runFTSSearch>>;
+  try {
+    [queryVec, ftsSet] = await Promise.all([
+      embed(query),
+      runFTSSearch(query),
+    ]);
+  } catch {
+    queryVec = null;
+    ftsSet = await runFTSSearch(query);
+  }
 
-  const vectorResults = await runVectorSearch(queryVec);
+  const vectorResults = queryVec ? await runVectorSearch(queryVec) : [];
   const ranked = mergeResults(vectorResults, ftsSet);
 
   if (ranked.length === 0) {

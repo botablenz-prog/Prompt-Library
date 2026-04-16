@@ -38,13 +38,13 @@ export function buildSearchText(p: {
   return parts.join("\n");
 }
 
-// Returns a 384-dimensional embedding vector for the given text.
-// Uses text-embedding-3-small with dimensions=384 to match the pgvector column.
 export async function embed(text: string): Promise<number[]> {
   const response = await getClient().embeddings.create({
     model: "openai/text-embedding-3-small",
     input: text,
     dimensions: 384,
   });
-  return response.data[0].embedding;
+  const vec = response.data?.[0]?.embedding;
+  if (!vec) throw new Error("Empty embedding response");
+  return vec;
 }
