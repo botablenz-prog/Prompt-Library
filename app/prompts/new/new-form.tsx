@@ -6,33 +6,14 @@ import { useRouter } from "next/navigation";
 export function NewForm() {
   const router = useRouter();
   const [title, setTitle] = useState("");
-  const [summary, setSummary] = useState("");
+  const [description, setDescription] = useState("");
   const [body, setBody] = useState("");
   const [saving, setSaving] = useState(false);
   const [filling, setFilling] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleAutoFill() {
-    if (!body.trim()) return;
-    setFilling(true);
-    try {
-      const res = await fetch("/api/auto-fill", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, description: summary, body }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Auto-fill failed");
-      // Preview the filled metadata — stored and sent on save
-      setAutoMeta(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Auto-fill failed");
-    } finally {
-      setFilling(false);
-    }
-  }
-
   const [autoMeta, setAutoMeta] = useState<null | {
+    title: string | null;
     summary: string | null;
     tags: string[];
     category: string;
@@ -42,9 +23,35 @@ export function NewForm() {
     optional_variables: { name: string; type: string; required: boolean }[];
   }>(null);
 
+  async function handleAutoFill() {
+    if (!body.trim()) return;
+    setFilling(true);
+    try {
+      const res = await fetch("/api/auto-fill", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, description, body }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Auto-fill failed");
+      setAutoMeta(data);
+      // Populate only if the field is currently blank — never overwrite user input
+      if (!title.trim() && data.title) setTitle(data.title);
+      if (!description.trim() && data.summary) setDescription(data.summary);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Auto-fill failed");
+    } finally {
+      setFilling(false);
+    }
+  }
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!title.trim()) {
+      setError("Title is required. Click Auto-fill to generate one, or type a title.");
+      return;
+    }
     setSaving(true);
     try {
       const res = await fetch("/api/prompts", {
@@ -52,12 +59,12 @@ export function NewForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: title.trim(),
-          summary: autoMeta?.summary ?? (summary.trim() || null),
+          summary: description.trim() || null,
           body: body.trim(),
           tags: autoMeta?.tags ?? [],
           category: autoMeta?.category ?? null,
           use_cases: autoMeta?.use_cases ?? [],
-          notes: autoMeta?.notes ?? (summary.trim() || null),
+          notes: autoMeta?.notes ?? null,
           required_variables: autoMeta?.required_variables ?? [],
           optional_variables: autoMeta?.optional_variables ?? [],
         }),
@@ -86,11 +93,10 @@ export function NewForm() {
       )}
 
       <div>
-        <label className="block text-xs font-medium text-zinc-400 mb-1">Title *</label>
+        <label className="block text-xs font-medium text-zinc-400 mb-1">Title</label>
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          required
           placeholder="e.g. Open Brain Spark"
           className={inputCls}
         />
@@ -102,8 +108,8 @@ export function NewForm() {
           <span className="text-zinc-600 ml-2 font-normal">any notes about what it does, when to use it, etc.</span>
         </label>
         <textarea
-          value={summary}
-          onChange={(e) => setSummary(e.target.value)}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
           placeholder="e.g. Interviews you about your workflow and generates personalised use cases"
           rows={5}
           className={`${inputCls} resize-y`}
@@ -129,7 +135,6 @@ export function NewForm() {
       {autoMeta && (
         <div className="rounded-md border border-zinc-700 bg-zinc-900 px-4 py-3 space-y-1 text-xs text-zinc-400">
           <p className="text-zinc-300 font-medium mb-2">Auto-filled metadata</p>
-          {autoMeta.summary && <p><span className="text-zinc-600">Summary:</span> {autoMeta.summary}</p>}
           {autoMeta.category && <p><span className="text-zinc-600">Category:</span> {autoMeta.category}</p>}
           {autoMeta.tags.length > 0 && <p><span className="text-zinc-600">Tags:</span> {autoMeta.tags.join(", ")}</p>}
           {autoMeta.use_cases.length > 0 && (
@@ -166,7 +171,7 @@ export function NewForm() {
         </button>
       </div>
       <p className="text-xs text-zinc-600">
-        Tags, category, use cases and variables are auto-detected from your prompt. Hit &ldquo;Auto-fill metadata&rdquo; to preview before saving.
+        Paste a prompt body and hit &ldquo;Auto-fill metadata&rdquo; — title, description, tags, category, and variables are all generated for you.
       </p>
     </form>
   );

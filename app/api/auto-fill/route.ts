@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
   const systemPrompt = `You are a prompt librarian. Given a prompt title, optional description, and body, output a JSON object with metadata.
 
 Output ONLY a raw JSON object — no markdown fences, no explanation, nothing else. Use this exact shape:
-{"summary":"one concise sentence max 15 words capturing what this prompt does","category":"one of: Discovery, Productivity, Engineering, Sales, Writing, Research, Strategy, Other","tags":["2-5","lowercase","keyword","tags"],"use_cases":["1-3 sentences on when to use this prompt"],"notes":"markdown with **What you'll get:** and **Output feeds into:** sections"}`;
+{"title":"descriptive title, 3-15 words, title case","summary":"one concise sentence max 15 words capturing what this prompt does","category":"one of: Discovery, Productivity, Engineering, Sales, Writing, Research, Strategy, Other","tags":["2-5","lowercase","keyword","tags"],"use_cases":["1-3 sentences on when to use this prompt"],"notes":"markdown with **What you'll get:** and **Output feeds into:** sections"}`;
 
   const userMessage = `Title: ${title || "(untitled)"}${description?.trim() ? `\n\nDescription: ${description.trim()}` : ""}
 
@@ -66,6 +66,7 @@ ${body}`;
 
     const raw = response.choices[0]?.message?.content ?? "{}";
     let meta: {
+      title?: string;
       summary?: string;
       category?: string;
       tags?: string[];
@@ -90,6 +91,7 @@ ${body}`;
     }));
 
     return NextResponse.json({
+      title: meta.title ?? null,
       summary: meta.summary ?? null,
       category: meta.category ?? null,
       tags: meta.tags ?? [],
