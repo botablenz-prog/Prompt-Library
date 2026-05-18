@@ -18,11 +18,14 @@ A self-hosted prompt management system. Save, search, and adapt your best LLM pr
 
 - **Hybrid search** — finds prompts by meaning, not just keywords. No LLM cost on the search path.
 - **LLM adaptation** — fill in variables, answer smart follow-up questions, get a ready-to-use prompt
+- **Auto-fill** — generate a title and description from a prompt body in one click
 - **Variable system** — define `{{variable_name}}` placeholders with types (`text`, `long_text`, `choice`)
 - **Variants** — save adapted outputs as immutable variants linked to the original prompt
 - **Version history** — every edit creates a full snapshot so you can always go back
-- **Role-based access** — admin/viewer roles via Supabase Auth (email OTP — no password required)
+- **Role-based access** — admin/guest roles via Supabase Auth (email OTP — no password required)
 - **Optional LLM reranking** — reorder search results by relevance via `?rerank=1`
+- **Portable JSON export** — back up or migrate your whole library via `/api/export`
+- **Pagination** — load-more list for large libraries
 
 ---
 
@@ -134,8 +137,10 @@ After running migrations, you need to create your admin account:
 
 1. Start the app: `npm run dev` — open [http://localhost:3001](http://localhost:3001)
 2. Click **Sign in** and enter your email address
-3. Check your email for a 6-digit code — enter it to log in
+3. Check your email for an 8-digit code — enter it to log in
    > This app uses **email OTP** (a one-time code) instead of a password. This is by design — it's simpler and more secure.
+   >
+   > **Supabase email template note:** by default Supabase sends a magic-link, not the code. In Supabase Dashboard → **Authentication → Email Templates → Magic Link**, add `{{ .Token }}` to the template body so the OTP code appears in the email.
 
 ### Step 2 — Grant yourself admin access
 
@@ -201,7 +206,7 @@ npm run backfill-owner -- <user-id>  # Assign ownership of existing prompts to a
 
 - **Search is always free** — no LLM calls on the search path. Hybrid = vector cosine (80%) + full-text search (20%), merged in `lib/search/scoring.ts`
 - **Embeddings on write** — generated when you create or edit a prompt (only when searchable fields change)
-- **LLM is called only** in `/api/adapt` (prompt adaptation) and optionally for reranking (`?rerank=1`)
+- **LLM is called only** in `/api/adapt` (prompt adaptation), `/api/auto-fill` (title + description from body), and optionally for search reranking (`?rerank=1`)
 - **Variable placeholders** use `{{variable_name}}` syntax — types: `text`, `long_text`, `choice`
 - **Variants** store a snapshot of the parent prompt body + the adapted output (immutable)
 - **Versions** store full snapshots of every edit so you can see prompt history
@@ -215,7 +220,8 @@ See [CLAUDE.md](CLAUDE.md) for full architecture notes and code style guidelines
 - **Service role key** — the `SUPABASE_SERVICE_ROLE_KEY` in your `.env.local` has full database access. Never share it, never commit it to git.
 - **Variants are public by design** — in this MVP, all prompts and variants are readable by anyone who can access your app. If you add `context_used` data during adaptation (e.g. personal details), be aware that it is stored in the variant record. This is intentional for a personal self-hosted tool; see migration 004 for how to restrict access if needed.
 - **Rate limiting** — there is no built-in rate limiting on LLM endpoints (`/api/adapt`, `/api/auto-fill`). If you deploy this publicly (not just for personal use), enable rate limiting at your hosting provider level (e.g. Vercel's built-in rate limiting or Cloudflare).
-- **Email OTP** — login uses a 6-digit one-time code sent to your email. No passwords are stored.
+- **Email OTP** — login uses an 8-digit one-time code sent to your email. No passwords are stored.
+- **RLS-first** — Supabase Row-Level Security policies are the primary access enforcement; API route guards are defense-in-depth. See migration `004_rls_ownership.sql`.
 
 ---
 
@@ -234,7 +240,7 @@ See [CLAUDE.md](CLAUDE.md) for full architecture notes and code style guidelines
 → You haven't been granted admin access yet. Complete the [First-time admin setup](#first-time-admin-setup) steps.
 
 **Login code never arrives**
-→ Check spam. If still nothing, go to Supabase → Authentication → Email templates and verify your email settings.
+→ Check spam. If the email has a magic-link button but no code, edit the Supabase **Magic Link** email template and add `{{ .Token }}` to the body. If you're hammering OTP during testing, note that Supabase free tier caps email at 2/hour.
 
 **App won't start — "port 3001 in use"**
 → Another process is using port 3001. Either stop that process, or change the port in `package.json`: `"dev": "next dev --port 3002"`.
