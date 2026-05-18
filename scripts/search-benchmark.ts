@@ -35,8 +35,11 @@ const supabase = createClient(
 
 type Verdict = "PASS_TOP1" | "PASS_TOP3" | "PASS_TOP5" | "FAIL_NOT_TOP5" | "NO_EXPECTATION";
 
+type QueryKind = "specific-title" | "fuzzy-intent" | "broad-family" | "smoke-test";
+
 interface Query {
   q: string;
+  kind: QueryKind;
   expectedTitle?: string;
   expectedFamily?: string;
   note?: string;
@@ -44,6 +47,7 @@ interface Query {
 
 interface QueryResult {
   query: string;
+  kind: QueryKind;
   top5: { rank: number; id: string; title: string; score: number }[];
   expectedTitle?: string;
   expectedFamily?: string;
@@ -53,24 +57,59 @@ interface QueryResult {
 }
 
 const QUERIES: Query[] = [
-  { q: "agent deployment",            expectedFamily: "Deployment / AI Agents" },
-  { q: "codebase agent readiness",    expectedTitle: "Deployment - Codebase Agent-Readiness Audit" },
-  { q: "build or buy agent",          expectedTitle: "Deployment - Build-or-Buy Diagnostic" },
-  { q: "consulting proposal",         expectedTitle: "Deployment - Consulting Proposal Decomposer" },
-  { q: "skill builder",               expectedTitle: "Skill Builder (Output-Extraction Method)" },
-  { q: "agent readiness skill",       expectedTitle: "Skill - Agent - Agent-Readiness Audit" },
-  { q: "claude md rules file",        expectedTitle: "Rules Files or Claude.md Generator" },
-  { q: "plugin debugger",             expectedTitle: "Codex Plugin - Plugin Refinement Debugger" },
-  { q: "open loops",                  expectedFamily: "Open Loop (likely duplicate — flag)" },
-  { q: "kids ai project",             expectedFamily: "AI for Kids" },
-  { q: "wiki maintenance",            expectedTitle: "AI Wiki - AI Wiki Maintenance Agent" },
-  { q: "local ai hardware",           expectedTitle: "Hardware - Local AI Stack Planner & Setup" },
-  { q: "meeting notes",               expectedTitle: "Meeting Debrief" },
-  { q: "cold email value proposition", expectedTitle: "Cold Email — Value Proposition" },
-  { q: "context gaps ai risk",        expectedTitle: "Intent - Find the context gaps that make AI risky in your workflow" },
-  { q: "tax",                         note: "future topic smoke test — no expected hit" },
-  { q: "investment",                  note: "future topic smoke test — no expected hit" },
-  { q: "space",                       note: "future topic smoke test — no expected hit" },
+  // SPECIFIC-TITLE — words from the query appear directly in the title. Today's baseline passes all of these at TOP1.
+  // Kept as a regression floor: any change in later phases that drops one of these is a blocker.
+  { q: "agent deployment",            kind: "specific-title", expectedFamily: "Deployment / AI Agents" },
+  { q: "codebase agent readiness",    kind: "specific-title", expectedTitle: "Deployment - Codebase Agent-Readiness Audit" },
+  { q: "build or buy agent",          kind: "specific-title", expectedTitle: "Deployment - Build-or-Buy Diagnostic" },
+  { q: "consulting proposal",         kind: "specific-title", expectedTitle: "Deployment - Consulting Proposal Decomposer" },
+  { q: "skill builder",               kind: "specific-title", expectedTitle: "Skill Builder (Output-Extraction Method)" },
+  { q: "agent readiness skill",       kind: "specific-title", expectedTitle: "Skill - Agent - Agent-Readiness Audit" },
+  { q: "claude md rules file",        kind: "specific-title", expectedTitle: "Rules Files or Claude.md Generator" },
+  { q: "plugin debugger",             kind: "specific-title", expectedTitle: "Codex Plugin - Plugin Refinement Debugger" },
+  { q: "open loops",                  kind: "specific-title", expectedFamily: "Open Loop (likely duplicate — flag)" },
+  { q: "kids ai project",             kind: "specific-title", expectedFamily: "AI for Kids" },
+  { q: "wiki maintenance",            kind: "specific-title", expectedTitle: "AI Wiki - AI Wiki Maintenance Agent" },
+  { q: "local ai hardware",           kind: "specific-title", expectedTitle: "Hardware - Local AI Stack Planner & Setup" },
+  { q: "meeting notes",               kind: "specific-title", expectedTitle: "Meeting Debrief" },
+  { q: "cold email value proposition", kind: "specific-title", expectedTitle: "Cold Email — Value Proposition" },
+  { q: "context gaps ai risk",        kind: "specific-title", expectedTitle: "Intent - Find the context gaps that make AI risky in your workflow" },
+
+  // FUZZY-INTENT — describe the prompt's purpose without using its exact title words.
+  // These are the real day-to-day failure mode (user feedback: "I type approximate search words or describe the intent").
+  { q: "what can i delegate to ai",                kind: "fuzzy-intent", expectedTitle: "The Open Loop Audit", note: "intent: find work to hand off" },
+  { q: "build agent in house or hire vendor",      kind: "fuzzy-intent", expectedTitle: "Deployment - Build-or-Buy Diagnostic", note: "paraphrase" },
+  { q: "is my code ready for ai agents",           kind: "fuzzy-intent", expectedTitle: "Deployment - Codebase Agent-Readiness Audit", note: "paraphrase" },
+  { q: "design knowledge system for ai",           kind: "fuzzy-intent", expectedTitle: "Memory Layer - AI-Native Knowledge Architecture Advisor", note: "intent" },
+  { q: "find contradictions in my docs",           kind: "fuzzy-intent", expectedTitle: "Memory Layer - Knowledge Base Drift & Contradiction Auditor", note: "intent" },
+  { q: "is my kid using ai too much",              kind: "fuzzy-intent", expectedTitle: "AI for Kids - The Cognitive Offloading Check-In", note: "intent" },
+  { q: "redesign homework for ai era",             kind: "fuzzy-intent", expectedTitle: "AI for Kids - AI-Age Assignment Redesigner (For Educators)", note: "paraphrase" },
+  { q: "should i run ai locally or cloud",         kind: "fuzzy-intent", expectedTitle: "Local vs Cloud AI Workflow Router", note: "paraphrase" },
+  { q: "compare two ai tools head to head",        kind: "fuzzy-intent", expectedTitle: "AI Deployment - AI Tool Head-to-Head Measurement Coach", note: "paraphrase" },
+  { q: "is this plugin safe",                      kind: "fuzzy-intent", expectedTitle: "Codex Plugin - Plugin Trust Evaluator", note: "intent" },
+  { q: "decide between prompt skill plugin",       kind: "fuzzy-intent", expectedTitle: "Plugin - Prompt, Skill, or Plugin Decision Advisor", note: "paraphrase" },
+  { q: "find ways my agent can fail",              kind: "fuzzy-intent", expectedTitle: "Agent Failure Mode Audit", note: "intent" },
+  { q: "overnight research on big decision",       kind: "fuzzy-intent", expectedTitle: "Stress-Test a Decision With Overnight Research", note: "paraphrase" },
+  { q: "audit ai built app security",              kind: "fuzzy-intent", expectedTitle: "Vibe Coding - AI-Built App Security & Resilience Audit", note: "paraphrase" },
+  { q: "am i ready to deploy agents",              kind: "fuzzy-intent", expectedTitle: "The Agent Deployment Readiness Assessment", note: "paraphrase" },
+  { q: "scaffold a new codex plugin",              kind: "fuzzy-intent", expectedTitle: "Codex Plugin - Plugin Starter Builder", note: "paraphrase" },
+  { q: "write evals for my domain",                kind: "fuzzy-intent", expectedTitle: "Intent - Write domain-specific evals and guardrails that stop AI from making locally right but organizationally wrong decisions", note: "paraphrase" },
+  { q: "engineer brief for non technical founder", kind: "fuzzy-intent", expectedTitle: "Technical Briefing Generator for Non-Technical Founders", note: "paraphrase" },
+  { q: "capture decision context for ai",          kind: "fuzzy-intent", expectedTitle: "Intent - Capture decision context so AI understands the why, not just the outcome", note: "paraphrase" },
+  { q: "turn meeting notes into action items",     kind: "fuzzy-intent", expectedTitle: "Meeting Debrief", note: "paraphrase" },
+
+  // BROAD-FAMILY — testing whether series-mates cluster in top results.
+  // Verdict is informational (NO_EXPECTATION) — manual inspection of top 5 is what matters.
+  { q: "everything about deployment",   kind: "broad-family", expectedFamily: "Deployment series" },
+  { q: "all the intent prompts",        kind: "broad-family", expectedFamily: "Intent series" },
+  { q: "wiki tools",                    kind: "broad-family", expectedFamily: "AI Wiki series" },
+  { q: "codex plugin stuff",            kind: "broad-family", expectedFamily: "Codex Plugin series" },
+  { q: "memory layer",                  kind: "broad-family", expectedFamily: "Memory Layer series" },
+
+  // SMOKE-TESTS — wider topics not yet in the library; should not error and should not return wildly off-topic noise.
+  { q: "tax",        kind: "smoke-test", note: "future topic — no expected hit" },
+  { q: "investment", kind: "smoke-test", note: "future topic — no expected hit" },
+  { q: "space",      kind: "smoke-test", note: "future topic — no expected hit" },
 ];
 
 async function runOne(query: string): Promise<QueryResult["top5"]> {
@@ -134,20 +173,28 @@ function pad(s: string, n: number): string {
 }
 
 function printTable(results: QueryResult[]): void {
-  console.log();
-  console.log(pad("Query", 36) + pad("Verdict", 16) + pad("Rank", 6) + "Top result");
-  console.log("─".repeat(36 + 16 + 6 + 40));
-  for (const r of results) {
-    const top = r.top5[0]?.title ?? "(no results)";
-    const rank = r.expectedRank?.toString() ?? "—";
-    console.log(pad(r.query, 36) + pad(r.verdict, 16) + pad(rank, 6) + top);
-  }
-  console.log();
-  const counts: Record<Verdict, number> = {
-    PASS_TOP1: 0, PASS_TOP3: 0, PASS_TOP5: 0, FAIL_NOT_TOP5: 0, NO_EXPECTATION: 0,
+  const groups: Record<QueryKind, QueryResult[]> = {
+    "specific-title": [], "fuzzy-intent": [], "broad-family": [], "smoke-test": [],
   };
-  for (const r of results) counts[r.verdict]++;
-  console.log("Summary:", JSON.stringify(counts));
+  for (const r of results) groups[r.kind].push(r);
+
+  for (const kind of ["specific-title", "fuzzy-intent", "broad-family", "smoke-test"] as QueryKind[]) {
+    const items = groups[kind];
+    if (items.length === 0) continue;
+    console.log(`\n── ${kind.toUpperCase()} (${items.length}) ──`);
+    console.log(pad("Query", 44) + pad("Verdict", 16) + pad("Rank", 6) + "Top result");
+    console.log("─".repeat(44 + 16 + 6 + 50));
+    for (const r of items) {
+      const top = r.top5[0]?.title ?? "(no results)";
+      const rank = r.expectedRank?.toString() ?? "—";
+      console.log(pad(r.query, 44) + pad(r.verdict, 16) + pad(rank, 6) + top);
+    }
+    const groupCounts: Record<Verdict, number> = {
+      PASS_TOP1: 0, PASS_TOP3: 0, PASS_TOP5: 0, FAIL_NOT_TOP5: 0, NO_EXPECTATION: 0,
+    };
+    for (const r of items) groupCounts[r.verdict]++;
+    console.log("  Group summary:", JSON.stringify(groupCounts));
+  }
   console.log();
 }
 
@@ -218,6 +265,7 @@ async function main() {
     const { verdict, expectedRank } = verdictFor(q, top5);
     results.push({
       query: q.q,
+      kind: q.kind,
       top5,
       expectedTitle: q.expectedTitle,
       expectedFamily: q.expectedFamily,
