@@ -47,7 +47,12 @@ export async function POST(req: NextRequest) {
   const systemPrompt = `You are a prompt librarian. Given a prompt title, optional description, and body, output a JSON object with metadata.
 
 Output ONLY a raw JSON object — no markdown fences, no explanation, nothing else. Use this exact shape:
-{"title":"descriptive title, 3-15 words, title case","summary":"one concise sentence max 15 words capturing what this prompt does","category":"one of: Discovery, Productivity, Engineering, Sales, Writing, Research, Strategy, Other","tags":["2-5","lowercase","keyword","tags"],"use_cases":["1-3 sentences on when to use this prompt"],"notes":"markdown with **What you'll get:** and **Output feeds into:** sections"}`;
+{"title":"descriptive title, 3-15 words, title case","summary":"one concise sentence max 15 words capturing what this prompt does","category":"one of: Discovery, Productivity, Engineering, Sales, Writing, Research, Strategy, Other","topic":"the subject/domain area — short, 1-3 words (e.g. AI Agents, Coding Agents, Sales, Tax, Investment, Local AI, Parenting, Knowledge Management, Productivity, Data Analysis). Use null if unsure.","series":"the named workflow family this prompt belongs to. Examples: Deployment, Intent, Skill, Claude Dispatch, AI Wiki, Codex Plugin, Memory Layer, AI for Kids, Vibe Coding, Plugin. Return null unless the prompt clearly belongs to one of these named families.","tags":["2-5","lowercase","keyword","tags"],"search_aliases":["3-6 short human-memory phrases someone might type to find this prompt — lowercase, NOT a keyword dump, phrases like a person would say (e.g. 'claude md', 'agent safety', 'wiki maintenance')"],"use_cases":["1-3 sentences on when to use this prompt"],"notes":"markdown with **What you'll get:** and **Output feeds into:** sections"}
+
+Rules:
+- topic and series must be null when you are not confident — better to skip than invent.
+- search_aliases must be short phrases someone would type when searching, not redundant keywords already in the title.
+- Do NOT include placeholders or 'TBD' values — use null instead.`;
 
   const userMessage = `Title: ${title || "(untitled)"}${description?.trim() ? `\n\nDescription: ${description.trim()}` : ""}
 
@@ -68,21 +73,22 @@ ${body}`;
     let meta: {
       title?: string;
       summary?: string;
-      category?: string;
+      category?: string | null;
+      topic?: string | null;
+      series?: string | null;
       tags?: string[];
+      search_aliases?: string[];
       use_cases?: string[];
-      notes?: string;
+      notes?: string | null;
     };
 
     try {
-      // Strip markdown code fences if the model wraps output anyway
       const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
       meta = JSON.parse(cleaned);
     } catch {
       meta = {};
     }
 
-    // Build variable definitions from detected {{variable}} names
     const required_variables = varNames.map((name) => ({
       name,
       type: "text" as const,
@@ -94,7 +100,10 @@ ${body}`;
       title: meta.title ?? null,
       summary: meta.summary ?? null,
       category: meta.category ?? null,
+      topic: meta.topic ?? null,
+      series: meta.series ?? null,
       tags: meta.tags ?? [],
+      search_aliases: meta.search_aliases ?? [],
       use_cases: meta.use_cases ?? [],
       notes: meta.notes ?? null,
       required_variables,
