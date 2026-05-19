@@ -72,7 +72,8 @@ interface Proposal {
 
 const SERIES_PATTERNS: { regex: RegExp; series: string }[] = [
   { regex: /^Deployment - /,           series: "Deployment" },
-  { regex: /^AI Deployment - /,        series: "AI Deployment" },        // flag for review — possibly merge into "Deployment"
+  // "AI Deployment - " is intentionally not a series: per user, these are AI Tool
+  // measurement prompts, not agent-deployment; topic alone disambiguates them.
   { regex: /^Intent - /,               series: "Intent" },
   { regex: /^Skill - /,                series: "Skill" },
   { regex: /^Claude Dispatch - /,      series: "Claude Dispatch" },
@@ -81,7 +82,7 @@ const SERIES_PATTERNS: { regex: RegExp; series: string }[] = [
   { regex: /^Memory Layer - /,         series: "Memory Layer" },
   { regex: /^AI for [Kk]ids - /,       series: "AI for Kids" },
   { regex: /^(AI )?Vibe Coding - /,    series: "Vibe Coding" },
-  { regex: /^Plugin - /,               series: "Plugin" },                // flag for review — possibly merge into "Codex Plugin"
+  { regex: /^Plugin - /,               series: "Plugin" },
 ];
 
 function detectSeries(title: string): string | null {
@@ -99,7 +100,6 @@ function detectSeries(title: string): string | null {
 
 const SERIES_TO_TOPIC: Record<string, string> = {
   "Deployment":      "AI Agents",
-  "AI Deployment":   "AI Tools",          // they're "AI Tool measurement" prompts, not agent-deployment
   "Intent":          "AI Safety",
   "Skill":           "AI Workflow",
   "Claude Dispatch": "AI Agents",
@@ -111,30 +111,75 @@ const SERIES_TO_TOPIC: Record<string, string> = {
   "Plugin":          "Coding Agents",
 };
 
-// Tag-based topic mapping (only used when series didn't match)
-const TAG_TO_TOPIC: { match: (tags: string[]) => boolean; topic: string }[] = [
-  { match: t => t.some(x => /^(local-ai|hardware-planning|ollama|lm[- ]studio|gpu)/i.test(x)), topic: "Local AI" },
-  { match: t => t.some(x => /^(email|sales|outreach|copywriting|cold)/i.test(x)),               topic: "Sales" },
-  { match: t => t.some(x => /^(meetings|weekly-review|productivity|planning)/i.test(x)),        topic: "Productivity" },
-  { match: t => t.some(x => /^(rag|chatbot|llm)/i.test(x)),                                     topic: "LLM Engineering" },
-  { match: t => t.some(x => /^(data-analysis|plotly|frequency-stability|etcher-logs)/i.test(x)), topic: "Data Analysis" },
-  { match: t => t.some(x => /^(parenting|child-development|ai-literacy|cognitive-development)/i.test(x)), topic: "Parenting" },
-  { match: t => t.some(x => /^(decision-making|build-vs-buy|prioritization|framework|bias-resistance)/i.test(x)), topic: "Decision-Making" },
-  { match: t => t.some(x => /^(knowledge-management|wiki-architecture|institutional-knowledge|knowledge-systems)/i.test(x)), topic: "Knowledge Management" },
-  { match: t => t.some(x => /^(ai-agents|agent-deployment|agent-safety|ai-reliability|agent-architecture|agent-evaluation|ai-safety)/i.test(x)), topic: "AI Agents" },
-  { match: t => t.some(x => /^(platform-strategy|lock-in-analysis|enterprise-strategy|ai-strategy)/i.test(x)), topic: "AI Strategy" },
-  { match: t => t.some(x => /^(measurement|comparison)/i.test(x)),                              topic: "AI Tools" },
-  { match: t => t.some(x => /^(discovery|onboarding|personal-knowledge|capture|templates)/i.test(x)), topic: "Knowledge Management" },
-  { match: t => t.some(x => /^(skill-building|skill-validation|skill-deployment)/i.test(x)),    topic: "AI Workflow" },
-  { match: t => t.some(x => /^(workflow-automation|task-decomposition|task-handoff|automation|scheduling|delegation)/i.test(x)), topic: "AI Agents" },
-  { match: t => t.some(x => /^(debugging|root-cause-analysis|problem-solving)/i.test(x)),       topic: "Coding Agents" },
-];
-
+// Priority-ordered topic detection. Title keywords first (most specific
+// signal), then series-to-topic, then tag families from specific to broad.
+// First match wins.
 function detectTopic(p: PromptRow, series: string | null): string | null {
+  const title = p.title;
+  const tags = p.tags ?? [];
+  const hasTag = (re: RegExp) => tags.some((t) => re.test(t));
+
+  // 1. Coding Agents — title is a strong signal
+  if (/(claude\.md|cursor|rules file|vibe coding|vibe coded|codex skill\.md|codex plugin)/i.test(title))
+    return "Coding Agents";
+  if (hasTag(/^(cursor|codex|claude|rules-generation|vibe-coding|skill-authoring|plugin-debugging|plugin-design|safe-coding)/i))
+    return "Coding Agents";
+
+  // 2. Series map — a named series is a stronger signal than any individual tag.
+  //    Prevents 'Deployment - Consulting Proposal Decomposer' being mis-tagged
+  //    AI Tools because it has a `procurement` tag.
   if (series && SERIES_TO_TOPIC[series]) return SERIES_TO_TOPIC[series];
-  for (const { match, topic } of TAG_TO_TOPIC) {
-    if (match(p.tags ?? [])) return topic;
-  }
+
+  // 3. AI Strategy — product/platform-level positioning beats generic "ai-agents" tag
+  if (hasTag(/^(compression|product-risk|positioning|platform-strategy|lock-in-analysis|enterprise-strategy|ai-strategy|switching-costs)/i))
+    return "AI Strategy";
+
+  // 4. AI Tools — head-to-head / procurement / capability-evaluator prompts
+  if (hasTag(/^(measurement|comparison|ai-evaluation|enterprise-tools|capability-assessment|procurement)/i))
+    return "AI Tools";
+
+  // 5. Local AI
+  if (hasTag(/^(local-ai|hardware-planning|ollama|lm-studio|gpu)/i)) return "Local AI";
+
+  // 6. Strong AI Agents tags — beat downstream Decision-Making / Productivity rules
+  if (hasTag(/^(agent-deployment|agent-safety|ai-reliability|agent-architecture|agent-evaluation|ai-safety|failure-modes|operational-risk|agent-testing|agent-audit|risk-audit|approval-gates|human-in-the-loop|harm-reduction|production-safety|readiness-check)/i))
+    return "AI Agents";
+
+  // 7. Parenting / Education (Education override is added later in flagsFor)
+  if (hasTag(/^(parenting|child-development|ai-literacy|cognitive-development)/i)) return "Parenting";
+
+  // 8. Sales
+  if (hasTag(/^(email|sales|outreach|copywriting)/i)) return "Sales";
+
+  // 9. Productivity — explicit productivity tags, not workflow-automation
+  if (hasTag(/^(meetings|weekly-review|planning|notes|productivity|async)/i)) return "Productivity";
+
+  // 10. LLM Engineering
+  if (hasTag(/^(rag|chatbot|llm|document-processing)/i)) return "LLM Engineering";
+
+  // 11. Data Analysis
+  if (hasTag(/^(data-analysis|plotly|frequency-stability|etcher-logs|frequency-tracking)/i)) return "Data Analysis";
+
+  // 12. AI Workflow — skill-building prompts
+  if (hasTag(/^(skill-building|skill-validation|skill-deployment|methodology-extraction|workflow-optimization|backlog-prioritization)/i))
+    return "AI Workflow";
+
+  // 13. Decision-Making — must come before the generic ai-agents catch-all
+  //     so that "decide between agents" beats "this is about agents"
+  if (hasTag(/^(decision-making|build-vs-buy|prioritization|framework|bias-resistance|technical-fit|product-analysis|product-selection|build-or-buy|competitive-intelligence|cost-analysis)/i))
+    return "Decision-Making";
+
+  // 14. Knowledge Management — broad bucket for capture / wiki / discovery / KM tags
+  if (hasTag(/^(knowledge-management|wiki-architecture|institutional-knowledge|knowledge-systems|personal-knowledge|capture|templates|discovery|onboarding|metadata|context-mapping|documentation|wiki-maintenance|editorial-policy|synthesis|engineering)/i))
+    return "Knowledge Management";
+
+  // 15. AI Agents — generic catch-all (delegation / automation / generic ai-agents tag)
+  if (hasTag(/^(ai-agents|delegation|workflow-automation|automation|scheduling|task-decomposition|task-handoff|brief-writing|cloud-tasks|open-loops|automation-audit|async-work|dispatch)/i))
+    return "AI Agents";
+
+  // 16. Coding Agents — fallback for debugging / problem-solving tags
+  if (hasTag(/^(debugging|root-cause-analysis|problem-solving|implementation-planning)/i)) return "Coding Agents";
+
   return null;
 }
 
@@ -174,23 +219,11 @@ function flagsFor(p: PromptRow, proposedTopic: string | null, proposedSeries: st
   const flags: string[] = [];
 
   // AI for Kids: educator-audience prompts → suggest topic=Education instead of Parenting
-  if (proposedSeries === "AI for Kids") {
-    if (/educator|curriculum|assignment/i.test(p.title)) {
-      flags.push("EDUCATION (override Parenting for educator-audience prompts)");
-    }
+  if (proposedSeries === "AI for Kids" && /educator|curriculum|assignment/i.test(p.title)) {
+    flags.push("EDUCATION (override Parenting for educator-audience prompts)");
   }
 
-  // AI Deployment vs Deployment — flag for merge consideration
-  if (proposedSeries === "AI Deployment") {
-    flags.push("SERIES: consider merging into 'Deployment'");
-  }
-
-  // Plugin vs Codex Plugin — flag
-  if (proposedSeries === "Plugin") {
-    flags.push("SERIES: consider 'Codex Plugin' instead");
-  }
-
-  // No topic proposed
+  // No topic proposed — heuristics didn't match, auto-fill or manual edit needed later
   if (!proposedTopic) {
     flags.push("NO_TOPIC (heuristics didn't match)");
   }
