@@ -120,11 +120,10 @@ async function runOne(query: string): Promise<QueryResult["top5"]> {
     queryVec = null;
   }
 
-  const ftsPromise = supabase
-    .from("prompts")
-    .select("id")
-    .textSearch("fts", query, { type: "plain", config: "english" })
-    .limit(20);
+  const ftsPromise = supabase.rpc("search_by_fts", {
+    query_text: query,
+    match_count: 20,
+  });
 
   const vecPromise = queryVec
     ? supabase.rpc("search_by_embedding", {
@@ -135,10 +134,13 @@ async function runOne(query: string): Promise<QueryResult["top5"]> {
 
   const [{ data: ftsData }, { data: vecData }] = await Promise.all([ftsPromise, vecPromise]);
 
-  const ftsSet = new Set<string>((ftsData ?? []).map((r: { id: string }) => r.id));
+  const ftsScores = new Map<string, number>();
+  for (const row of (ftsData ?? []) as { id: string; fts_score: number }[]) {
+    ftsScores.set(row.id, row.fts_score);
+  }
   const vectorResults = (vecData ?? []) as { id: string; vec_score: number }[];
 
-  const ranked = mergeResults(vectorResults, ftsSet);
+  const ranked = mergeResults(vectorResults, ftsScores);
   const top5 = ranked.slice(0, 5);
 
   if (top5.length === 0) return [];

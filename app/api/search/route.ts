@@ -32,19 +32,19 @@ export async function GET(req: NextRequest) {
 
   // Run embedding + FTS in parallel; fall back to FTS-only if embedding fails
   let queryVec: number[] | null = null;
-  let ftsSet: Awaited<ReturnType<typeof runFTSSearch>>;
+  let ftsScores: Map<string, number>;
   try {
-    [queryVec, ftsSet] = await Promise.all([
+    [queryVec, ftsScores] = await Promise.all([
       embed(query),
       runFTSSearch(query),
     ]);
   } catch {
     queryVec = null;
-    ftsSet = await runFTSSearch(query);
+    ftsScores = await runFTSSearch(query);
   }
 
   const vectorResults = queryVec ? await runVectorSearch(queryVec) : [];
-  const ranked = mergeResults(vectorResults, ftsSet);
+  const ranked = mergeResults(vectorResults, ftsScores);
 
   if (ranked.length === 0) {
     return NextResponse.json([]);
