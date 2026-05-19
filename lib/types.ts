@@ -22,6 +22,9 @@ export interface Prompt {
   optional_variables: VariableDef[];
   tags: string[];
   category: string | null;
+  topic: string | null;
+  series: string | null;
+  search_aliases: string[];
   use_cases: string[];
   notes: string | null;
   // embedding is excluded from most queries (large float array)

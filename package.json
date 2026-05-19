@@ -19,7 +19,8 @@
     "reindex": "tsx scripts/reindex.ts",
     "set-admin": "node --env-file=.env.local node_modules/tsx/dist/cli.mjs scripts/set-admin.ts",
     "backfill-owner": "node --env-file=.env.local node_modules/tsx/dist/cli.mjs scripts/backfill-owner.ts",
-    "benchmark": "tsx scripts/search-benchmark.ts"
+    "benchmark": "tsx scripts/search-benchmark.ts",
+    "backfill:retrieval": "tsx scripts/backfill-retrieval-metadata.ts"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.8.1",

@@ -7,7 +7,7 @@ import { embed, buildSearchText } from "@/lib/embeddings/pipeline";
 import type { UpdatePromptPayload } from "@/lib/types";
 
 const SELECT_COLS =
-  "id, title, summary, body, required_variables, optional_variables, tags, category, use_cases, notes, created_at, updated_at";
+  "id, title, summary, body, required_variables, optional_variables, tags, category, topic, series, search_aliases, use_cases, notes, created_at, updated_at";
 
 // GET /api/prompts/[id]
 export async function GET(
@@ -57,6 +57,15 @@ export async function PATCH(
   if (updates.tags !== undefined && (!Array.isArray(updates.tags) || updates.tags.length > 20 || updates.tags.some((t) => typeof t !== "string" || t.length > 50))) {
     return NextResponse.json({ error: "tags must be an array of up to 20 strings (max 50 chars each)" }, { status: 400 });
   }
+  if (updates.topic !== undefined && updates.topic !== null && (typeof updates.topic !== "string" || updates.topic.length > 100)) {
+    return NextResponse.json({ error: "topic must be 100 characters or fewer" }, { status: 400 });
+  }
+  if (updates.series !== undefined && updates.series !== null && (typeof updates.series !== "string" || updates.series.length > 100)) {
+    return NextResponse.json({ error: "series must be 100 characters or fewer" }, { status: 400 });
+  }
+  if (updates.search_aliases !== undefined && (!Array.isArray(updates.search_aliases) || updates.search_aliases.length > 20 || updates.search_aliases.some((a) => typeof a !== "string" || a.length > 100))) {
+    return NextResponse.json({ error: "search_aliases must be an array of up to 20 strings (max 100 chars each)" }, { status: 400 });
+  }
 
   // Fetch current record to snapshot and check if body changed
   const { data: current, error: fetchError } = await supabase
@@ -76,7 +85,7 @@ export async function PATCH(
 
   // Re-embed if any searchable field changed
   let embedding: string | undefined;
-  const searchableFields = ["title", "summary", "body", "tags", "category", "use_cases", "notes"] as const;
+  const searchableFields = ["title", "summary", "body", "tags", "category", "topic", "series", "search_aliases", "use_cases", "notes"] as const;
   const searchableChanged = searchableFields.some(
     (f) => updates[f] !== undefined && JSON.stringify(updates[f]) !== JSON.stringify(current[f])
   );
