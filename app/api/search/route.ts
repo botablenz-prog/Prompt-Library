@@ -8,6 +8,7 @@ import { embed } from "@/lib/embeddings/pipeline";
 import { runVectorSearch } from "@/lib/search/vector";
 import { runFTSSearch } from "@/lib/search/fts";
 import { scoreCandidates, type CandidateRow } from "@/lib/search/scoring";
+import { applyFilters, type SearchFilters } from "@/lib/search/facets";
 import type { Prompt, SearchResult } from "@/lib/types";
 
 const CANDIDATE_SELECT =
@@ -30,6 +31,13 @@ export async function GET(req: NextRequest) {
       const guard = await requireAdmin();
       if (guard instanceof NextResponse) return guard;
     }
+
+    const filters: SearchFilters = {
+      topic:    req.nextUrl.searchParams.get("topic")    ?? undefined,
+      category: req.nextUrl.searchParams.get("category") ?? undefined,
+      series:   req.nextUrl.searchParams.get("series")   ?? undefined,
+      hasVars:  req.nextUrl.searchParams.get("hasVars")  === "1",
+    };
 
     const supabase = createAnonClient();
 
@@ -72,9 +80,10 @@ export async function GET(req: NextRequest) {
     }
 
     const rows = (data ?? []) as (Prompt & CandidateRow)[];
-    const scored = scoreCandidates(query, rows, vecScoreMap, ftsScores);
+    const filtered = applyFilters(rows, filters);
+    const scored = scoreCandidates(query, filtered, vecScoreMap, ftsScores);
 
-    const promptById = new Map(rows.map((r) => [r.id, r]));
+    const promptById = new Map(filtered.map((r) => [r.id, r]));
     const results: SearchResult[] = scored
       .slice(0, 10)
       .map((s) => ({ ...(promptById.get(s.id)!), score: s.score, matchSignals: s.matchSignals }));
