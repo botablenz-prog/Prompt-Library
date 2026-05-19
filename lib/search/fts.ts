@@ -7,7 +7,7 @@ import { createAnonClient } from "@/lib/supabase/anon";
 //
 // Empty map = no matches. Backward-compatible with the previous Set<string>
 // shape via `ftsScores.has(id)` checks; Phase 5 will use the score value.
-export async function runFTSSearch(query: string, limit = 20): Promise<Map<string, number>> {
+export async function runFTSSearch(query: string, limit = 50): Promise<Map<string, number>> {
   const supabase = createAnonClient();
 
   const { data, error } = await supabase.rpc("search_by_fts", {

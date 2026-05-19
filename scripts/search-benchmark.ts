@@ -11,7 +11,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { embed } from "../lib/embeddings/pipeline";
-import { mergeResults } from "../lib/search/scoring";
+import { scoreCandidates, type CandidateRow } from "../lib/search/scoring";
 
 function loadEnv() {
   try {
@@ -122,13 +122,13 @@ async function runOne(query: string): Promise<QueryResult["top5"]> {
 
   const ftsPromise = supabase.rpc("search_by_fts", {
     query_text: query,
-    match_count: 20,
+    match_count: 50,
   });
 
   const vecPromise = queryVec
     ? supabase.rpc("search_by_embedding", {
         query_embedding: `[${queryVec.join(",")}]`,
-        match_count: 20,
+        match_count: 50,
       })
     : Promise.resolve({ data: [], error: null });
 
@@ -138,19 +138,24 @@ async function runOne(query: string): Promise<QueryResult["top5"]> {
   for (const row of (ftsData ?? []) as { id: string; fts_score: number }[]) {
     ftsScores.set(row.id, row.fts_score);
   }
-  const vectorResults = (vecData ?? []) as { id: string; vec_score: number }[];
+  const vecScoreMap = new Map<string, number>();
+  for (const row of (vecData ?? []) as { id: string; vec_score: number }[]) {
+    vecScoreMap.set(row.id, row.vec_score);
+  }
 
-  const ranked = mergeResults(vectorResults, ftsScores);
-  const top5 = ranked.slice(0, 5);
-
-  if (top5.length === 0) return [];
+  const candidateIds = new Set<string>([...vecScoreMap.keys(), ...ftsScores.keys()]);
+  if (candidateIds.size === 0) return [];
 
   const { data: rows } = await supabase
     .from("prompts")
-    .select("id, title")
-    .in("id", top5.map(r => r.id));
+    .select("id, title, summary, body, tags, category, topic, series, search_aliases, use_cases, required_variables, optional_variables")
+    .in("id", Array.from(candidateIds));
 
-  const titleMap = new Map((rows ?? []).map((r: { id: string; title: string }) => [r.id, r.title]));
+  const candidates = (rows ?? []) as CandidateRow[];
+  const scored = scoreCandidates(query, candidates, vecScoreMap, ftsScores);
+  const top5 = scored.slice(0, 5);
+
+  const titleMap = new Map(candidates.map((c) => [c.id, c.title]));
   return top5.map((r, i) => ({
     rank: i + 1,
     id: r.id,

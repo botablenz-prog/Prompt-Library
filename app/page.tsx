@@ -7,7 +7,7 @@ import { SearchBar } from "@/components/search-bar";
 import { embed } from "@/lib/embeddings/pipeline";
 import { runVectorSearch } from "@/lib/search/vector";
 import { runFTSSearch } from "@/lib/search/fts";
-import { mergeResults } from "@/lib/search/scoring";
+import { scoreCandidates, type CandidateRow } from "@/lib/search/scoring";
 import { rerankResults } from "@/lib/search/rerank";
 import { getUser, getRole } from "@/lib/auth/session";
 import { PromptList } from "@/components/prompt-list";
@@ -17,57 +17,62 @@ interface Props {
   searchParams: Promise<{ q?: string; rerank?: string }>;
 }
 
+const CANDIDATE_SELECT =
+  "id, title, summary, body, required_variables, optional_variables, tags, category, topic, series, search_aliases, use_cases, notes, created_at, updated_at";
+
 async function getPrompts(query?: string, rerank?: boolean): Promise<(Prompt | SearchResult)[]> {
   if (query?.trim()) {
     const supabase = createAnonClient();
     let queryVec: number[] | null = null;
-    let ftsSet: Awaited<ReturnType<typeof runFTSSearch>>;
+    let ftsScores: Map<string, number>;
     try {
-      [queryVec, ftsSet] = await Promise.all([
+      [queryVec, ftsScores] = await Promise.all([
         embed(query),
         runFTSSearch(query),
       ]);
     } catch {
-      // Embedding failed — fall back to FTS-only search
       queryVec = null;
-      ftsSet = await runFTSSearch(query);
+      ftsScores = await runFTSSearch(query);
     }
     const vectorResults = queryVec ? await runVectorSearch(queryVec) : [];
-    const ranked = mergeResults(vectorResults, ftsSet);
-    if (ranked.length === 0) return [];
 
-    const topIds = ranked.slice(0, 20).map((r) => r.id);
-    const scoreMap = new Map(ranked.map((r) => [r.id, r.score]));
+    const vecScoreMap = new Map<string, number>();
+    for (const v of vectorResults) vecScoreMap.set(v.id, v.vec_score);
+
+    const candidateIds = new Set<string>([...vecScoreMap.keys(), ...ftsScores.keys()]);
+    if (candidateIds.size === 0) return [];
+
     const { data } = await supabase
       .from("prompts")
-      .select(
-        "id, title, summary, body, required_variables, optional_variables, tags, category, use_cases, notes, created_at, updated_at"
-      )
-      .in("id", topIds);
+      .select(CANDIDATE_SELECT)
+      .in("id", Array.from(candidateIds));
 
-    const candidates = (data ?? []) as Prompt[];
+    const rows = (data ?? []) as (Prompt & CandidateRow)[];
+    const scored = scoreCandidates(query, rows, vecScoreMap, ftsScores);
 
-    if (rerank && candidates.length > 0) {
-      const rerankedIds = await rerankResults(query, candidates);
-      const idIndex = new Map(candidates.map((p) => [p.id, p]));
+    if (rerank && rows.length > 0) {
+      const rerankedIds = await rerankResults(query, rows);
+      const idIndex = new Map(rows.map((p) => [p.id, p]));
       return rerankedIds
         .slice(0, 10)
         .map((id) => idIndex.get(id))
         .filter(Boolean) as Prompt[];
     }
 
-    return candidates
+    const promptById = new Map(rows.map((r) => [r.id, r]));
+    return scored
       .slice(0, 10)
-      .map((p) => ({ ...p, score: scoreMap.get(p.id) ?? 0 }))
-      .sort((a, b) => (b as SearchResult).score - (a as SearchResult).score);
+      .map((s): SearchResult => ({
+        ...(promptById.get(s.id)!),
+        score: s.score,
+        matchSignals: s.matchSignals,
+      }));
   }
 
   const supabase = createAnonClient();
   const { data } = await supabase
     .from("prompts")
-    .select(
-      "id, title, summary, body, required_variables, optional_variables, tags, category, use_cases, notes, created_at, updated_at"
-    )
+    .select(CANDIDATE_SELECT)
     .order("updated_at", { ascending: false })
     .range(0, 19);
 

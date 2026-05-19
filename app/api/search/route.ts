@@ -7,69 +7,82 @@ import { requireAdmin } from "@/lib/auth/api-guard";
 import { embed } from "@/lib/embeddings/pipeline";
 import { runVectorSearch } from "@/lib/search/vector";
 import { runFTSSearch } from "@/lib/search/fts";
-import { mergeResults } from "@/lib/search/scoring";
-import type { Prompt } from "@/lib/types";
+import { scoreCandidates, type CandidateRow } from "@/lib/search/scoring";
+import type { Prompt, SearchResult } from "@/lib/types";
+
+const CANDIDATE_SELECT =
+  "id, title, summary, body, required_variables, optional_variables, tags, category, topic, series, search_aliases, use_cases, notes, created_at, updated_at";
 
 // GET /api/search?q=<query>
 export async function GET(req: NextRequest) {
-  const query = req.nextUrl.searchParams.get("q")?.trim();
-
-  if (!query) {
-    return NextResponse.json({ error: "q is required" }, { status: 400 });
-  }
-
-  if (query.length > 1000) {
-    return NextResponse.json({ error: "Query too long (max 1000 characters)" }, { status: 400 });
-  }
-
-  // Reranking triggers an LLM call — require admin
-  if (req.nextUrl.searchParams.get("rerank") === "1") {
-    const guard = await requireAdmin();
-    if (guard instanceof NextResponse) return guard;
-  }
-
-  const supabase = createAnonClient();
-
-  // Run embedding + FTS in parallel; fall back to FTS-only if embedding fails
-  let queryVec: number[] | null = null;
-  let ftsScores: Map<string, number>;
   try {
-    [queryVec, ftsScores] = await Promise.all([
-      embed(query),
-      runFTSSearch(query),
+    const query = req.nextUrl.searchParams.get("q")?.trim();
+
+    if (!query) {
+      return NextResponse.json({ error: "q is required" }, { status: 400 });
+    }
+
+    if (query.length > 1000) {
+      return NextResponse.json({ error: "Query too long (max 1000 characters)" }, { status: 400 });
+    }
+
+    if (req.nextUrl.searchParams.get("rerank") === "1") {
+      const guard = await requireAdmin();
+      if (guard instanceof NextResponse) return guard;
+    }
+
+    const supabase = createAnonClient();
+
+    // Run embedding + FTS in parallel; fall back to FTS-only if embedding fails
+    let queryVec: number[] | null = null;
+    let ftsScores: Map<string, number>;
+    try {
+      [queryVec, ftsScores] = await Promise.all([
+        embed(query),
+        runFTSSearch(query),
+      ]);
+    } catch {
+      queryVec = null;
+      ftsScores = await runFTSSearch(query);
+    }
+
+    const vectorResults = queryVec ? await runVectorSearch(queryVec) : [];
+
+    const vecScoreMap = new Map<string, number>();
+    for (const v of vectorResults) vecScoreMap.set(v.id, v.vec_score);
+
+    // Union of vector and FTS candidate IDs — up to 100 rows at default limits
+    const candidateIds = new Set<string>([
+      ...vecScoreMap.keys(),
+      ...ftsScores.keys(),
     ]);
-  } catch {
-    queryVec = null;
-    ftsScores = await runFTSSearch(query);
-  }
 
-  const vectorResults = queryVec ? await runVectorSearch(queryVec) : [];
-  const ranked = mergeResults(vectorResults, ftsScores);
+    if (candidateIds.size === 0) {
+      return NextResponse.json([]);
+    }
 
-  if (ranked.length === 0) {
-    return NextResponse.json([]);
-  }
+    const { data, error } = await supabase
+      .from("prompts")
+      .select(CANDIDATE_SELECT)
+      .in("id", Array.from(candidateIds));
 
-  // Fetch full prompt rows for top 10 results
-  const topIds = ranked.slice(0, 10).map((r) => r.id);
-  const scoreMap = new Map(ranked.map((r) => [r.id, r.score]));
+    if (error) {
+      console.error("[GET /api/search]", error.code ?? error.name);
+      return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
+    }
 
-  const { data, error } = await supabase
-    .from("prompts")
-    .select(
-      "id, title, summary, body, required_variables, optional_variables, tags, category, use_cases, notes, created_at, updated_at"
-    )
-    .in("id", topIds);
+    const rows = (data ?? []) as (Prompt & CandidateRow)[];
+    const scored = scoreCandidates(query, rows, vecScoreMap, ftsScores);
 
-  if (error) {
-    console.error("[GET /api/search]", error.code ?? error.name);
+    const promptById = new Map(rows.map((r) => [r.id, r]));
+    const results: SearchResult[] = scored
+      .slice(0, 10)
+      .map((s) => ({ ...(promptById.get(s.id)!), score: s.score, matchSignals: s.matchSignals }));
+
+    return NextResponse.json(results);
+  } catch (err) {
+    const e = err as { code?: string; name?: string };
+    console.error("[GET /api/search]", e?.code ?? e?.name ?? "unknown");
     return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
   }
-
-  // Re-sort by score (DB .in() doesn't preserve order)
-  const results = (data as Prompt[])
-    .map((p) => ({ ...p, score: scoreMap.get(p.id) ?? 0 }))
-    .sort((a, b) => b.score - a.score);
-
-  return NextResponse.json(results);
 }

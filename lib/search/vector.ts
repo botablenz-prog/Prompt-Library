@@ -8,7 +8,7 @@ export interface VectorResult {
 // Returns top-N prompts by cosine similarity to queryVec
 export async function runVectorSearch(
   queryVec: number[],
-  limit = 20
+  limit = 50
 ): Promise<VectorResult[]> {
   const supabase = createAnonClient();
   const vecString = `[${queryVec.join(",")}]`;
