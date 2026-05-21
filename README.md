@@ -17,8 +17,11 @@ A self-hosted prompt management system. Save, search, and adapt your best LLM pr
 ## Features
 
 - **Hybrid search** — finds prompts by meaning, not just keywords. No LLM cost on the search path.
+- **Multi-signal scoring** — title, topic, series, aliases, tags, use cases and variables all contribute to ranking
+- **Search filter chips** — filter by topic, category, series, or variable-enabled prompts
+- **Matched-on signals** — result cards show exactly why each prompt was returned
 - **LLM adaptation** — fill in variables, answer smart follow-up questions, get a ready-to-use prompt
-- **Auto-fill** — generate a title and description from a prompt body in one click
+- **Auto-fill** — generate title, description, topic, series and search aliases from a prompt body in one click
 - **Variable system** — define `{{variable_name}}` placeholders with types (`text`, `long_text`, `choice`)
 - **Variants** — save adapted outputs as immutable variants linked to the original prompt
 - **Version history** — every edit creates a full snapshot so you can always go back
@@ -112,7 +115,7 @@ OPENROUTER_MODEL=anthropic/claude-haiku-4-5   ← leave as-is, or change to any 
 
 ## Database setup
 
-You need to run 4 SQL migration files in your Supabase project. This takes about 5 minutes.
+You need to run 7 SQL migration files in your Supabase project. This takes about 5 minutes.
 
 1. Go to your Supabase project → click **SQL Editor** in the left sidebar
 2. Click **New query**
@@ -124,6 +127,9 @@ You need to run 4 SQL migration files in your Supabase project. This takes about
 | 2 | `supabase/migrations/002_initial_schema.sql` | Creates tables |
 | 3 | `supabase/migrations/003_search_function.sql` | Creates search function |
 | 4 | `supabase/migrations/004_rls_ownership.sql` | Sets up access control |
+| 5 | `supabase/migrations/005_retrieval_metadata.sql` | Adds topic, series, search_aliases columns |
+| 6 | `supabase/migrations/006_fts_rpc.sql` | Adds weighted FTS search function |
+| 7 | `supabase/migrations/007_fts_weighting.sql` | FTS weighting enhancements |
 
 Run them **in order**. Each one must succeed before running the next.
 
