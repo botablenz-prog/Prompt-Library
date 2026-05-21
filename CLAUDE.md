@@ -101,11 +101,10 @@ npm run search-benchmark             # Run retrieval quality benchmark
 ```
 
 ## Deployment
-Vercel is connected to the personal repo `engineeringyh-dotcom/Prompt-library`, branch `main`. The org repo `botablenz-prog/Prompt-Library` is the public/open-source home but Vercel can't deploy from it (App not installed, OAuth loop).
+Vercel is connected to `botablenz-prog/Prompt-Library`, branch `main`. Both `origin` and `vercel` remotes point to the same repo — pushing either deploys.
 
-Two git remotes — push both when deploying:
 ```bash
-git push origin main && git push vercel main
+git push origin main
 ```
 
 ## Variable System
