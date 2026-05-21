@@ -1,3 +1,7 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 # Prompt Library — CLAUDE.md
 
 ## Project Overview
@@ -16,9 +20,11 @@ Live at `https://prompt-library-ten-iota.vercel.app`. Started as a personal tool
 ## Key Architecture Decisions
 - Embeddings are generated **synchronously** on `POST /api/prompts` and `PATCH /api/prompts/[id]` (when any searchable field changes)
 - Embedding text includes title, summary, category, tags, use_cases, body, notes — all labeled (e.g. `Title: ...`) for better retrieval
-- Default search is **always free** — no LLM on the search path. Hybrid = vector cosine (80%) + FTS boolean match (20%)
+- Default search is **always free** — no LLM on the search path. Hybrid = vector cosine (80%) + FTS weighted boolean match (20%)
+- Prompts carry retrieval-metadata fields: `topic`, `series`, `search_aliases` — included in embedding text and FTS weighting
 - **FTS fallback**: if embedding generation fails, search gracefully falls back to FTS-only rather than erroring
-- LLM is called in `/api/adapt` (adaptation), `/api/auto-fill` (title/description from body), and optionally in search reranking (`?rerank=1` — reorders top-20 candidates by relevance)
+- **Auto-fill merge rule**: `mergeAutoFill()` in `lib/auto-fill-merge.ts` — user input always wins; LLM only fills blank fields. Never overwrite what the user typed.
+- LLM is called in `/api/adapt` (adaptation), `/api/auto-fill` (title/description/topic/series/search_aliases from body), and optionally in search reranking (`?rerank=1` — reorders top-20 candidates by relevance)
 - `prompt_versions` stores full JSONB snapshots of the prompt row on every edit
 - `prompt_variants` stores `frozen_body` (parent body at creation time) + `adapted_body` (immutable output)
 - Variable placeholders use `{{variable_name}}` syntax only — no nesting
@@ -36,20 +42,22 @@ Live at `https://prompt-library-ten-iota.vercel.app`. Started as a personal tool
 app/                    Next.js App Router pages + API routes
   api/
     prompts/            list/create + [id] get/patch/delete + [id]/variants
-    search/             hybrid search endpoint (optional ?rerank=1)
+    search/             hybrid search endpoint (optional ?rerank=1); /facets for filter chip counts
     adapt/              LLM adaptation
-    auto-fill/          LLM title/description from body
+    auto-fill/          LLM title/description/topic/series/search_aliases from body
     export/             portable JSON export
 lib/
   auth/                 requireAdmin/requireUser server helpers
   supabase/             Browser (@supabase/ssr) + server clients
   embeddings/           Embedding pipeline (OpenRouter)
-  search/               vector.ts, fts.ts, scoring.ts, rerank.ts
+  search/               vector.ts, fts.ts, scoring.ts, rerank.ts, facets.ts
   adaptation/           variables.ts (extract/detect), llm.ts (OpenRouter)
+  auto-fill-merge.ts    Merge strategy: user input wins, LLM fills blanks only
   types.ts              All shared TypeScript types
 components/             React components (prompt-card, prompt-form, search-bar, adapt-flow)
 supabase/migrations/    SQL migrations (run via Supabase dashboard or CLI)
-scripts/                seed.ts, embed.ts, reindex.ts, set-admin.ts, backfill-owner.ts
+scripts/                seed.ts, embed.ts, reindex.ts, set-admin.ts, backfill-owner.ts,
+                        backfill-retrieval-metadata.ts, report-duplicates.ts, search-benchmark.ts
 ```
 
 ## Environment Variables
@@ -66,6 +74,9 @@ Create a new Supabase project, then run migrations in order via the SQL Editor o
 - `002_initial_schema.sql`
 - `003_search_function.sql`
 - `004_rls_ownership.sql`
+- `005_retrieval_metadata.sql` — adds `topic`, `series`, `search_aliases` columns
+- `006_fts_rpc.sql` — weighted FTS RPC function
+- `007_fts_weights.sql` — FTS weighting enhancements
 
 After migration 004, configure your admin account:
 1. Supabase Dashboard → Authentication → Users → Invite user
@@ -78,11 +89,15 @@ Supabase OTP email template note: the default sends a magic link, not a code. Ad
 ## Scripts
 ```bash
 npm run dev              # Next dev on port 3001 (webpack)
+npm run lint             # ESLint via next lint
 npm run seed             # Insert example prompts
 npm run embed            # Generate embeddings for prompts missing them
 npm run reindex          # Re-embed ALL prompts (after model/schema changes)
 npm run set-admin        # Grant admin role to a user (service role)
 npm run backfill-owner   # Backfill owner_id on legacy prompts
+npm run backfill-retrieval-metadata  # Populate topic/series/search_aliases on existing prompts
+npm run report-duplicates            # Print duplicate-detection report
+npm run search-benchmark             # Run retrieval quality benchmark
 ```
 
 ## Deployment

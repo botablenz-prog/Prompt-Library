@@ -1,14 +1,41 @@
 "use client";
 
 import Link from "next/link";
-import type { Prompt, SearchResult } from "@/lib/types";
+import type { Prompt, SearchResult, MatchSignals } from "@/lib/types";
 
 interface Props {
   prompt: Prompt | SearchResult;
 }
 
+const SIGNAL_LABELS: { key: keyof MatchSignals; label: string }[] = [
+  { key: "title",     label: "title" },
+  { key: "aliases",   label: "aliases" },
+  { key: "topic",     label: "topic" },
+  { key: "series",    label: "series" },
+  { key: "use_cases", label: "use case" },
+  { key: "tags",      label: "tags" },
+  { key: "variables", label: "variables" },
+  { key: "summary",   label: "summary" },
+  { key: "body",      label: "body" },
+];
+
+function matchedOnLabel(signals: MatchSignals): string | null {
+  const hits = SIGNAL_LABELS.filter(({ key }) => signals[key]).map(({ label }) => label);
+  if (hits.length === 0) return null;
+  return hits.slice(0, 4).join(", ");
+}
+
 export function PromptCard({ prompt }: Props) {
-  const score = "score" in prompt ? prompt.score : null;
+  const isSearchResult = "matchSignals" in prompt;
+  const score = isSearchResult ? (prompt as SearchResult).score : null;
+  const matchedOn = isSearchResult ? matchedOnLabel((prompt as SearchResult).matchSignals) : null;
+
+  const variableNames = [
+    ...(prompt.required_variables ?? []),
+    ...(prompt.optional_variables ?? []),
+  ].map((v) => v.name).filter(Boolean);
+
+  const firstUseCase = isSearchResult ? prompt.use_cases?.[0] : null;
 
   return (
     <Link
@@ -29,10 +56,20 @@ export function PromptCard({ prompt }: Props) {
         )}
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-1.5">
+      <div className="mt-3 flex flex-wrap items-center gap-1.5">
+        {prompt.topic && (
+          <span className="rounded px-1.5 py-0.5 text-xs bg-zinc-700 text-zinc-200">
+            {prompt.topic}
+          </span>
+        )}
         {prompt.category && (
           <span className="rounded px-1.5 py-0.5 text-xs bg-zinc-800 text-zinc-400">
             {prompt.category}
+          </span>
+        )}
+        {prompt.series && (
+          <span className="rounded px-1.5 py-0.5 text-xs bg-zinc-800 text-zinc-300 italic">
+            {prompt.series}
           </span>
         )}
         {prompt.tags.slice(0, 4).map((tag) => (
@@ -45,9 +82,23 @@ export function PromptCard({ prompt }: Props) {
         ))}
       </div>
 
-      <div className="mt-3 flex items-center gap-3 text-xs text-zinc-600">
-        {prompt.required_variables.length > 0 && (
-          <span>{prompt.required_variables.length} required var{prompt.required_variables.length !== 1 ? "s" : ""}</span>
+      {firstUseCase && (
+        <p className="mt-2 text-xs text-zinc-500 line-clamp-1">
+          <span className="text-zinc-600">Use case:</span> {firstUseCase}
+        </p>
+      )}
+
+      {variableNames.length > 0 && (
+        <p className="mt-1 text-xs text-zinc-500 truncate">
+          <span className="text-zinc-600">Variables:</span> {variableNames.join(", ")}
+        </p>
+      )}
+
+      <div className="mt-3 flex items-center justify-between gap-3 text-xs text-zinc-600">
+        {matchedOn ? (
+          <span>Matched on: {matchedOn}</span>
+        ) : (
+          <span />
         )}
         <span>{new Date(prompt.updated_at).toLocaleDateString("en-US")}</span>
       </div>

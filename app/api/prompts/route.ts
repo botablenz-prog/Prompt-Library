@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   const { data, error } = await supabase
     .from("prompts")
     .select(
-      "id, title, summary, body, required_variables, optional_variables, tags, category, use_cases, notes, created_at, updated_at"
+      "id, title, summary, body, required_variables, optional_variables, tags, category, topic, series, search_aliases, use_cases, notes, created_at, updated_at"
     )
     .order("updated_at", { ascending: false })
     .range(offset, offset + limit - 1);
@@ -56,6 +56,15 @@ export async function POST(req: NextRequest) {
   if (body.tags && (!Array.isArray(body.tags) || body.tags.length > 20 || body.tags.some((t) => typeof t !== "string" || t.length > 50))) {
     return NextResponse.json({ error: "tags must be an array of up to 20 strings (max 50 chars each)" }, { status: 400 });
   }
+  if (body.topic !== undefined && body.topic !== null && (typeof body.topic !== "string" || body.topic.length > 100)) {
+    return NextResponse.json({ error: "topic must be 100 characters or fewer" }, { status: 400 });
+  }
+  if (body.series !== undefined && body.series !== null && (typeof body.series !== "string" || body.series.length > 100)) {
+    return NextResponse.json({ error: "series must be 100 characters or fewer" }, { status: 400 });
+  }
+  if (body.search_aliases && (!Array.isArray(body.search_aliases) || body.search_aliases.length > 20 || body.search_aliases.some((a) => typeof a !== "string" || a.length > 100))) {
+    return NextResponse.json({ error: "search_aliases must be an array of up to 20 strings (max 100 chars each)" }, { status: 400 });
+  }
 
   // Generate embedding synchronously so the prompt is searchable immediately
   const embedding = await embed(buildSearchText(body));
@@ -64,7 +73,7 @@ export async function POST(req: NextRequest) {
     .from("prompts")
     .insert({ ...body, user_id: userId, embedding: JSON.stringify(embedding) })
     .select(
-      "id, title, summary, body, required_variables, optional_variables, tags, category, use_cases, notes, created_at, updated_at"
+      "id, title, summary, body, required_variables, optional_variables, tags, category, topic, series, search_aliases, use_cases, notes, created_at, updated_at"
     )
     .single();
 

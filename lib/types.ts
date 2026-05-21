@@ -22,6 +22,9 @@ export interface Prompt {
   optional_variables: VariableDef[];
   tags: string[];
   category: string | null;
+  topic: string | null;
+  series: string | null;
+  search_aliases: string[];
   use_cases: string[];
   notes: string | null;
   // embedding is excluded from most queries (large float array)
@@ -29,9 +32,27 @@ export interface Prompt {
   updated_at: string;
 }
 
-// Row returned by the search endpoint — includes a score
+// Per-field match flags returned alongside a search result. Drives the
+// "matched on: title, aliases, series" hint on result cards (Phase 6).
+export interface MatchSignals {
+  title: boolean;
+  aliases: boolean;
+  topic: boolean;
+  series: boolean;
+  use_cases: boolean;
+  tags: boolean;
+  category: boolean;
+  summary: boolean;
+  variables: boolean;
+  body: boolean;
+  vector: boolean;
+  fts: boolean;
+}
+
+// Row returned by the search endpoint — includes a score and match signals
 export interface SearchResult extends Prompt {
   score: number;
+  matchSignals: MatchSignals;
 }
 
 export interface PromptVariant {

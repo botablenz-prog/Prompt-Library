@@ -28,9 +28,14 @@ const supabase = createClient(
 async function main() {
   const { data: prompts, error } = await supabase
     .from("prompts")
-    .select("id, title, summary, body, tags, category, use_cases, notes");
+    .select("id, title, summary, body, tags, category, topic, series, search_aliases, use_cases, notes, required_variables, optional_variables");
 
   if (error) throw error;
+
+  console.log("========================================");
+  console.log("BEFORE REINDEX — run this in Supabase SQL Editor to preserve updated_at:");
+  console.log("  ALTER TABLE prompts DISABLE TRIGGER prompts_updated_at;");
+  console.log("========================================\n");
 
   console.log(`Re-indexing ${prompts?.length ?? 0} prompts...\n`);
 
@@ -50,6 +55,10 @@ async function main() {
     }
   }
 
+  console.log("\n========================================");
+  console.log("AFTER REINDEX — run this in Supabase SQL Editor to re-enable timestamps:");
+  console.log("  ALTER TABLE prompts ENABLE TRIGGER prompts_updated_at;");
+  console.log("========================================");
   console.log("\nDone.");
 }
 
